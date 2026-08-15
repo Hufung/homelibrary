@@ -1,0 +1,6 @@
+{
+  "name": "3D Bookshelf & ISBN Library",
+  "description": "An interactive 3D online bookshelf and library manager with live ISBN barcode scanning, 3D book inspection, and mobile-friendly EPUB reader with persistent storage, text highlights, and note annotations.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

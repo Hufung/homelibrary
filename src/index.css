@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, Cambria, 'Times New Roman', Times, serif;
+}
+
+@layer utilities {
+  .perspective-1000 {
+    perspective: 1000px;
+  }
+  .perspective-1500 {
+    perspective: 1500px;
+  }
+  .perspective-2000 {
+    perspective: 2000px;
+  }
+  .transform-style-3d {
+    transform-style: preserve-3d;
+  }
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+}
+
+/* Natural wood & architectural shelf textures for 3D Bookshelf */
+.wood-shelf {
+  background: linear-gradient(180deg, #6B4E3D 0%, #4A3427 60%, #352419 100%);
+  box-shadow: 
+    inset 0 2px 3px rgba(255, 255, 255, 0.25),
+    0 10px 20px -5px rgba(60, 45, 30, 0.25),
+    0 4px 6px rgba(60, 45, 30, 0.15);
+}
+
+.wood-shelf-top {
+  background: linear-gradient(90deg, #7D5C49 0%, #9C745D 30%, #7D5C49 70%, #6B4E3D 100%);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35);
+}
+
+.wood-backdrop {
+  background: 
+    radial-gradient(ellipse at 50% 30%, rgba(234, 228, 217, 0.95) 0%, rgba(220, 211, 196, 0.98) 100%),
+    repeating-linear-gradient(90deg, rgba(90, 90, 64, 0.03) 0px, rgba(90, 90, 64, 0.03) 70px, rgba(90, 90, 64, 0.08) 71px);
+}
+
+.modern-shelf {
+  background: linear-gradient(180deg, #E2DCcf 0%, #D4CCBD 100%);
+  box-shadow: 
+    inset 0 1px 2px rgba(255, 255, 255, 0.6),
+    0 8px 16px -4px rgba(61, 58, 53, 0.12);
+}
+
+.modern-shelf-top {
+  background: #EAE4D9;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.8);
+}
+
+/* Book 3D glossy light sheen */
+.book-sheen {
+  background: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.03) 30%,
+    rgba(255, 255, 255, 0.28) 45%,
+    rgba(255, 255, 255, 0.04) 55%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  pointer-events: none;
+}
+
+.page-stripes {
+  background: repeating-linear-gradient(
+    90deg,
+    #faf6ee 0px,
+    #f3ede0 2px,
+    #e9e0ce 3px,
+    #faf6ee 5px
+  );
+}
+
+.page-stripes-horizontal {
+  background: repeating-linear-gradient(
+    180deg,
+    #faf6ee 0px,
+    #f3ede0 2px,
+    #e9e0ce 3px,
+    #faf6ee 5px
+  );
+}
+
+/* Scanner laser beam animation */
+@keyframes scanLaser {
+  0% {
+    top: 5%;
+    opacity: 0.8;
+  }
+  50% {
+    top: 90%;
+    opacity: 1;
+  }
+  100% {
+    top: 5%;
+    opacity: 0.8;
+  }
+}
+
+.scanner-laser {
+  animation: scanLaser 2.2s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* Custom scrollbar for modern dark/light UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(140, 140, 140, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(140, 140, 140, 0.5);
+}
