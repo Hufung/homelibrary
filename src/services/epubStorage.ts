@@ -5,6 +5,7 @@ const DB_VERSION = 1;
 
 const STORES = {
   FILES: 'epub_files',
+  PDF_FILES: 'pdf_files',
   HIGHLIGHTS: 'epub_highlights',
   BOOKMARKS: 'epub_bookmarks',
   LOCATIONS: 'epub_locations',
@@ -30,6 +31,11 @@ class EpubStorageService {
         // Store for raw EPUB file buffers
         if (!db.objectStoreNames.contains(STORES.FILES)) {
           db.createObjectStore(STORES.FILES, { keyPath: 'bookId' });
+        }
+
+        // Store for raw PDF file buffers
+        if (!db.objectStoreNames.contains(STORES.PDF_FILES)) {
+          db.createObjectStore(STORES.PDF_FILES, { keyPath: 'bookId' });
         }
 
         // Store for highlights
@@ -126,6 +132,77 @@ class EpubStorageService {
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([STORES.FILES], 'readwrite');
       const store = transaction.objectStore(STORES.FILES);
+      const req = store.delete(bookId);
+
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  // --- PDF File Storage ---
+  async savePdfFile(bookId: string, fileData: ArrayBuffer | Blob | File, fileName: string): Promise<number> {
+    const db = await this.getDB();
+    let buffer: ArrayBuffer;
+
+    if (fileData instanceof ArrayBuffer) {
+      buffer = fileData;
+    } else {
+      buffer = await fileData.arrayBuffer();
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORES.PDF_FILES], 'readwrite');
+      const store = transaction.objectStore(STORES.PDF_FILES);
+
+      const record = {
+        bookId,
+        data: buffer,
+        fileName,
+        size: buffer.byteLength,
+        uploadedAt: new Date().toISOString(),
+      };
+
+      const req = store.put(record);
+      req.onsuccess = () => resolve(buffer.byteLength);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async getPdfFile(bookId: string): Promise<ArrayBuffer | null> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORES.PDF_FILES], 'readonly');
+      const store = transaction.objectStore(STORES.PDF_FILES);
+      const req = store.get(bookId);
+
+      req.onsuccess = () => {
+        if (req.result && req.result.data) {
+          resolve(req.result.data);
+        } else {
+          resolve(null);
+        }
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async hasPdfFile(bookId: string): Promise<boolean> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORES.PDF_FILES], 'readonly');
+      const store = transaction.objectStore(STORES.PDF_FILES);
+      const req = store.count(IDBKeyRange.only(bookId));
+
+      req.onsuccess = () => resolve(req.result > 0);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async deletePdfFile(bookId: string): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORES.PDF_FILES], 'readwrite');
+      const store = transaction.objectStore(STORES.PDF_FILES);
       const req = store.delete(bookId);
 
       req.onsuccess = () => resolve();

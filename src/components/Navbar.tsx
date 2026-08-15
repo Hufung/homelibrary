@@ -151,10 +151,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 onOpenEpubUpload();
               }}
               className="flex items-center gap-1.5 px-3.5 sm:px-4 py-2 sm:py-2.5 bg-[#EAE4D9] hover:bg-[#D9D1C2] text-[#5A5A40] border border-[#D9D1C2] font-semibold text-xs rounded-full transition cursor-pointer shadow-xs active:scale-95"
-              title="Upload and Read EPUB E-Books"
+              title="Upload and Read EPUB / PDF E-Books"
             >
               <BookOpen className="w-4 h-4 text-[#5A5A40]" />
-              <span className="hidden sm:inline">Upload EPUB</span>
+              <span className="hidden sm:inline">Upload E-Book</span>
             </button>
 
             {/* Primary Action: Scan ISBN */}
@@ -218,7 +218,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               Favorites
             </button>
 
-            {/* EPUB Only Filter */}
+            {/* E-Book Files Filter */}
             <button
               onClick={() => onUpdateFilters({ epubOnly: !filters.epubOnly })}
               className={`px-3 py-1 rounded-full text-[11px] font-medium flex items-center gap-1.5 border transition cursor-pointer ${
@@ -228,7 +228,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <BookOpen className="w-3 h-3" />
-              EPUBs Only
+              E-Books
             </button>
 
             {/* Shelf Filter Dropdown */}

@@ -14,6 +14,7 @@ import {
   Plus,
   Layers,
   ArrowRight,
+  File as FileIcon,
 } from 'lucide-react';
 
 interface EpubUploadModalProps {
@@ -25,6 +26,8 @@ interface EpubUploadModalProps {
   onUpdateBook: (book: Book) => void;
   onOpenReader: (book: Book) => void;
 }
+
+type UploadFormat = 'epub' | 'pdf';
 
 export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
   isOpen,
@@ -42,6 +45,7 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
 
   // Extracted preview state
   const [parsedData, setParsedData] = useState<{
+    format: UploadFormat;
     file: File | Blob;
     fileName: string;
     fileSize: number;
@@ -67,32 +71,54 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
     setIsProcessing(true);
     setErrorMessage(null);
 
+    const fileName = customName || (file instanceof File ? file.name : 'sample_book.epub');
+    const format: UploadFormat = fileName.toLowerCase().endsWith('.pdf')
+      ? 'pdf'
+      : 'epub';
+
     try {
       const buffer = await file.arrayBuffer();
-      const meta = await extractEpubMetadata(buffer);
 
-      const fileName = customName || (file instanceof File ? file.name : 'sample_book.epub');
-
-      setParsedData({
-        file,
-        fileName,
-        fileSize: buffer.byteLength,
-        title: meta.title,
-        authors: meta.authors,
-        description: meta.description,
-        coverUrl:
-          meta.coverDataUrl ||
-          `https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80`,
-        publisher: meta.publisher || 'Independent EPUB',
-        language: meta.language || 'en',
-        pageEstimate: meta.spineItemCount,
-      });
+      if (format === 'pdf') {
+        const baseTitle = fileName.replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim();
+        setParsedData({
+          format,
+          file,
+          fileName,
+          fileSize: buffer.byteLength,
+          title: baseTitle || 'Untitled PDF',
+          authors: ['Unknown Author'],
+          description: 'Imported PDF file. Reading view is optimized for tablets & desktop.',
+          coverUrl:
+            'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=600&auto=format&fit=crop&q=80',
+          publisher: 'Imported PDF',
+          language: 'en',
+          pageEstimate: 1,
+        });
+      } else {
+        const meta = await extractEpubMetadata(buffer);
+        setParsedData({
+          format,
+          file,
+          fileName,
+          fileSize: buffer.byteLength,
+          title: meta.title,
+          authors: meta.authors,
+          description: meta.description,
+          coverUrl:
+            meta.coverDataUrl ||
+            `https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80`,
+          publisher: meta.publisher || 'Independent EPUB',
+          language: meta.language || 'en',
+          pageEstimate: meta.spineItemCount,
+        });
+      }
 
       sounds.playScanSuccess();
     } catch (err: any) {
-      console.error('Error processing EPUB', err);
+      console.error('Error processing file', err);
       setErrorMessage(
-        'Could not parse this EPUB file. Please ensure it is a valid, unencrypted .epub file.'
+        'Could not parse this file. Please ensure it is a valid .epub or .pdf file.'
       );
     } finally {
       setIsProcessing(false);
@@ -105,10 +131,12 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
       const file = files[0];
-      if (file.name.endsWith('.epub') || file.type.includes('epub')) {
+      if (file.name.toLowerCase().endsWith('.epub') || file.type.includes('epub')) {
+        handleFileProcess(file);
+      } else if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
         handleFileProcess(file);
       } else {
-        setErrorMessage('Please upload a file with .epub extension.');
+        setErrorMessage('Please upload a file with .epub or .pdf extension.');
       }
     }
   };
@@ -142,6 +170,7 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
 
       if (mode === 'new-book') {
         const newBookId = `epub-${Date.now()}`;
+        const isPdf = parsedData.format === 'pdf';
         const newBook: Book = {
           id: newBookId,
           isbn: `EPUB-${Math.floor(100000 + Math.random() * 900000)}`,
@@ -152,7 +181,7 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
           pageCount: parsedData.pageEstimate,
           publishedDate: new Date().getFullYear().toString(),
           publisher: parsedData.publisher,
-          categories: ['EPUB Reader', 'E-Book'],
+          categories: isPdf ? ['PDF Reader', 'E-Book'] : ['EPUB Reader', 'E-Book'],
           language: parsedData.language,
           status: 'reading',
           rating: 5,
@@ -164,13 +193,19 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
           spineColor: '#5A5A40',
           accentColor: '#B58D3D',
           isFavorite: false,
-          hasEpub: true,
-          epubFileName: parsedData.fileName,
-          epubFileSize: parsedData.fileSize,
+          hasEpub: !isPdf,
+          epubFileName: isPdf ? undefined : parsedData.fileName,
+          epubFileSize: isPdf ? undefined : parsedData.fileSize,
+          hasPdf: isPdf,
+          pdfFileName: isPdf ? parsedData.fileName : undefined,
+          pdfFileSize: isPdf ? parsedData.fileSize : undefined,
         };
 
-        // Save binary file into IndexedDB
-        await epubStorage.saveEpubFile(newBookId, parsedData.file, parsedData.fileName);
+        if (isPdf) {
+          await epubStorage.savePdfFile(newBookId, parsedData.file, parsedData.fileName);
+        } else {
+          await epubStorage.saveEpubFile(newBookId, parsedData.file, parsedData.fileName);
+        }
         onAddBook(newBook);
         targetBook = newBook;
       } else {
@@ -178,14 +213,22 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
         const existing = existingBooks.find((b) => b.id === selectedExistingBookId);
         if (!existing) return;
 
+        const isPdf = parsedData.format === 'pdf';
         const updated: Book = {
           ...existing,
-          hasEpub: true,
-          epubFileName: parsedData.fileName,
-          epubFileSize: parsedData.fileSize,
+          hasEpub: !isPdf ? true : existing.hasEpub,
+          epubFileName: !isPdf ? parsedData.fileName : existing.epubFileName,
+          epubFileSize: !isPdf ? parsedData.fileSize : existing.epubFileSize,
+          hasPdf: isPdf ? true : existing.hasPdf,
+          pdfFileName: isPdf ? parsedData.fileName : existing.pdfFileName,
+          pdfFileSize: isPdf ? parsedData.fileSize : existing.pdfFileSize,
         };
 
-        await epubStorage.saveEpubFile(existing.id, parsedData.file, parsedData.fileName);
+        if (isPdf) {
+          await epubStorage.savePdfFile(existing.id, parsedData.file, parsedData.fileName);
+        } else {
+          await epubStorage.saveEpubFile(existing.id, parsedData.file, parsedData.fileName);
+        }
         onUpdateBook(updated);
         targetBook = updated;
       }
@@ -196,8 +239,8 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
         onOpenReader(targetBook);
       }
     } catch (err) {
-      console.error('Failed to save EPUB to storage', err);
-      setErrorMessage('Failed to save EPUB to local storage database.');
+      console.error('Failed to save file to storage', err);
+      setErrorMessage('Failed to save file to local storage database.');
     }
   };
 
@@ -218,8 +261,8 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-serif font-bold text-lg text-[#2C2C2C]">Upload & Read EPUB</h3>
-              <p className="text-xs text-[#8C867A]">Store books offline & read in browser</p>
+              <h3 className="font-serif font-bold text-lg text-[#2C2C2C]">Upload & Read</h3>
+              <p className="text-xs text-[#8C867A]">Store EPUB &amp; PDF books offline, read in browser</p>
             </div>
           </div>
 
@@ -260,7 +303,7 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".epub,application/epub+zip"
+                  accept=".epub,application/epub+zip,.pdf,application/pdf"
                   onChange={handleFileInputChange}
                   className="hidden"
                 />
@@ -270,11 +313,11 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
                 </div>
 
                 <p className="text-sm font-semibold text-[#2C2C2C]">
-                  {isProcessing ? 'Analyzing EPUB contents...' : 'Click to browse or drop an .epub file here'}
+                  {isProcessing ? 'Analyzing file contents...' : 'Click to browse or drop an .epub / .pdf file here'}
                 </p>
 
                 <p className="text-xs text-[#8C867A] mt-1 max-w-sm">
-                  Supports standard EPUB 2 and EPUB 3 formats. Files are stored securely in your browser's persistent database.
+                  Supports standard EPUB 2/3 and PDF documents. Files are stored securely in your browser's persistent database.
                 </p>
               </div>
 
@@ -300,15 +343,21 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
                   className="w-20 h-28 object-cover rounded-xl shadow-md flex-shrink-0 border border-[#D9D1C2]"
                 />
                 <div className="flex-1 min-w-0 space-y-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#EAE4D9] text-[#5A5A40]">
-                    EPUB E-Book
+                  <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                    parsedData.format === 'pdf'
+                      ? 'bg-rose-50 text-rose-700'
+                      : 'bg-[#EAE4D9] text-[#5A5A40]'
+                  }`}>
+                    {parsedData.format === 'pdf' ? (
+                      <span className="flex items-center gap-1"><FileIcon className="w-3 h-3" /> PDF Document</span>
+                    ) : 'EPUB E-Book'}
                   </span>
                   <h4 className="font-serif font-bold text-base text-[#2C2C2C] leading-snug line-clamp-2">
                     {parsedData.title}
                   </h4>
                   <p className="text-xs text-[#8C867A]">by {parsedData.authors.join(', ')}</p>
                   <p className="text-[11px] text-[#8C867A] pt-1">
-                    ~{parsedData.pageEstimate} pages • {(parsedData.fileSize / 1024).toFixed(0)} KB
+                    {parsedData.format === 'pdf' ? '' : `~${parsedData.pageEstimate} pages • `}{(parsedData.fileSize / 1024).toFixed(0)} KB
                   </p>
                 </div>
               </div>
@@ -346,7 +395,7 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
                       <Layers className="w-3.5 h-3.5" /> Attach to Existing Book
                     </div>
                     <div className="text-[11px] opacity-80 mt-1">
-                      Link EPUB file to a book already on shelf
+                      Link EPUB/PDF file to a book already on shelf
                     </div>
                   </button>
                 </div>

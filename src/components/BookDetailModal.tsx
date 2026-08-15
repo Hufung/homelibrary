@@ -188,17 +188,19 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              id="detail-read-epub-btn"
-              onClick={() => {
-                onClose();
-                onOpenEpubReader(book);
-              }}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#5A5A40] hover:bg-[#4A4A34] text-white text-xs font-semibold rounded-full shadow-xs transition cursor-pointer"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Read Online (EPUB)</span>
-            </button>
+            {(book.hasEpub || book.hasPdf) && (
+              <button
+                id="detail-read-epub-btn"
+                onClick={() => {
+                  onClose();
+                  onOpenEpubReader(book);
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#5A5A40] hover:bg-[#4A4A34] text-white text-xs font-semibold rounded-full shadow-xs transition cursor-pointer"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>{book.hasPdf ? 'Read PDF' : 'Read Online (EPUB)'}</span>
+              </button>
+            )}
 
             <button
               id="detail-fav-btn"
@@ -267,7 +269,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
           {/* TAB 1: 3D INTERACTIVE INSPECTOR */}
           {activeTab === '3d-inspector' && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
                 {/* 3D Drag & Rotate Stage */}
                 <div
                   id="3d-stage-container"
@@ -275,7 +277,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                   onMouseMove={handleMouseMove}
                   onMouseUp={handleMouseUp}
                   onMouseLeave={handleMouseUp}
-                  className="lg:col-span-7 bg-[#F5F2ED] rounded-3xl p-8 border border-[#D9D1C2] flex flex-col items-center justify-center min-h-[380px] relative select-none cursor-grab active:cursor-grabbing overflow-hidden shadow-sm"
+                  className="md:col-span-7 bg-[#F5F2ED] rounded-3xl p-8 border border-[#D9D1C2] flex flex-col items-center justify-center min-h-[380px] relative select-none cursor-grab active:cursor-grabbing overflow-hidden shadow-sm"
                 >
                   {/* Stage Lighting Hint */}
                   <div className="absolute top-4 left-4 text-[10px] text-[#8C867A] font-mono flex items-center gap-1.5">
@@ -326,7 +328,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                 </div>
 
                 {/* Right Column: Reading Progress, Rating, Lending Tracker */}
-                <div className="lg:col-span-5 space-y-5">
+                <div className="md:col-span-5 space-y-5">
                   <div>
                     <h3 className="font-serif font-bold text-xl text-[#2C2C2C] leading-snug">
                       {book.title}

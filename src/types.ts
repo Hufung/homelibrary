@@ -65,6 +65,11 @@ export interface Book {
   epubFileSize?: number;
   lastReadCfi?: string;
   readingPercentage?: number;
+  // PDF Integration
+  hasPdf?: boolean;
+  pdfFileName?: string;
+  pdfFileSize?: number;
+  lastReadPdfPage?: number;
 }
 
 export type ViewMode = 'bookshelf-3d' | 'grid-3d' | 'compact-table';

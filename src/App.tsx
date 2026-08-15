@@ -9,6 +9,7 @@ import { BookDetailModal } from './components/BookDetailModal';
 import { StatsDrawer } from './components/StatsDrawer';
 import { EpubReaderModal } from './components/EpubReader/EpubReaderModal';
 import { EpubUploadModal } from './components/EpubReader/EpubUploadModal';
+import { PdfReaderModal } from './components/PdfReader/PdfReaderModal';
 import { sounds } from './services/soundEffects';
 import { Sparkles, BookOpen, Layers, RefreshCw, Heart, CheckCircle2 } from 'lucide-react';
 
@@ -122,8 +123,8 @@ export default function App() {
           return false;
         }
 
-        // EPUBs Only
-        if (filters.epubOnly && !book.hasEpub) {
+        // eBooks / Attached files only
+        if (filters.epubOnly && !book.hasEpub && !book.hasPdf) {
           return false;
         }
 
@@ -308,11 +309,19 @@ export default function App() {
         books={books}
       />
 
-      {/* EPUB Reader Modal */}
-      {readingBook && (
+      {/* EPUB / PDF Reader Modal */}
+      {readingBook && readingBook.hasEpub && !readingBook.hasPdf && (
         <EpubReaderModal
           book={readingBook}
           isOpen={Boolean(readingBook)}
+          onClose={() => setReadingBook(null)}
+          onUpdateBook={handleUpdateBook}
+        />
+      )}
+
+      {readingBook && readingBook.hasPdf && (
+        <PdfReaderModal
+          book={readingBook}
           onClose={() => setReadingBook(null)}
           onUpdateBook={handleUpdateBook}
         />
