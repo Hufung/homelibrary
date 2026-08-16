@@ -44,6 +44,7 @@ const SCALE_STEP = 0.25;
 
 export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, onUpdateBook }) => {
   const [pdfData, setPdfData] = useState<ArrayBuffer | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
   const [basePageSize, setBasePageSize] = useState<{ width: number; height: number }>({
     width: 600,
@@ -55,6 +56,23 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState<boolean>(false);
+
+  // Wrap the stored ArrayBuffer in a Blob URL so multiple <Document> instances
+  // can render the same PDF concurrently. Passing a raw ArrayBuffer makes
+  // pdf.js detach the buffer as soon as it transfers it to the worker, which
+  // crashes every subsequent <Document> ("Cannot perform Construct on a
+  // detached ArrayBuffer"). A Blob URL is a stable, copy-free reference that
+  // pdf.js can fetch without touching the underlying buffer.
+  useEffect(() => {
+    if (!pdfData) {
+      setPdfUrl(null);
+      return;
+    }
+    const blob = new Blob([pdfData], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    setPdfUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pdfData]);
 
   const [bookmarks, setBookmarks] = useState<EpubBookmark[]>([]);
   const [isBookmarksOpen, setIsBookmarksOpen] = useState<boolean>(false);
@@ -328,7 +346,7 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
           </div>
         )}
 
-        {!loading && !error && pdfData && (
+        {!loading && !error && pdfUrl && (
           <div
             className="relative drop-shadow-2xl"
             style={{
@@ -337,7 +355,7 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
             }}
           >
             <Document
-              file={pdfData}
+              file={pdfUrl}
               onLoadSuccess={handleLoadSuccess}
               onLoadError={() => setError('This PDF could not be rendered.')}
             >
@@ -362,7 +380,7 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
               canFlipNext={pageNumber < numPages}
               onFlipNext={() => goToPage(pageNumber + 1)}
               currentPage={
-                <Document file={pdfData}>
+                <Document file={pdfUrl}>
                   <Page
                     pageNumber={pageNumber}
                     width={basePageSize.width * scale}
@@ -375,7 +393,7 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
               }
               nextPage={
                 pageNumber < numPages ? (
-                  <Document file={pdfData}>
+                  <Document file={pdfUrl}>
                     <Page
                       pageNumber={pageNumber + 1}
                       width={basePageSize.width * scale}
