@@ -3,128 +3,232 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 interface PageFlipProps {
   currentPage: React.ReactNode;
   nextPage: React.ReactNode | null;
+  previousPage: React.ReactNode | null;
   canFlipNext: boolean;
+  canFlipPrev: boolean;
   onFlipNext: () => void;
+  onFlipPrev: () => void;
   width: number;
   height: number;
 }
 
-type Phase = 'idle' | 'dragging' | 'flipping' | 'returning';
+type Phase = 'idle' | 'dragging-next' | 'dragging-prev' | 'flipping' | 'returning';
+type Direction = 'next' | 'prev';
+
+const COMMIT_THRESHOLD = 0.35;
+const VELOCITY_COMMIT = 0.55; // progress-units per millisecond-ish (unitless, but works)
+const SWIPE_LOCK_PX = 8;
 
 export const PageFlip: React.FC<PageFlipProps> = ({
   currentPage,
   nextPage,
+  previousPage,
   canFlipNext,
+  canFlipPrev,
   onFlipNext,
+  onFlipPrev,
   width,
   height,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
   const [progress, setProgress] = useState(0);
+  const [direction, setDirection] = useState<Direction>('next');
+
   const startXRef = useRef<number>(0);
-  const startProgressRef = useRef<number>(0);
+  const startYRef = useRef<number>(0);
+  const startTimeRef = useRef<number>(0);
+  const lastXRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
   const triggeredRef = useRef<boolean>(false);
+  const directionRef = useRef<Direction | null>(null);
+  const lockedRef = useRef<boolean>(false);
   const rafRef = useRef<number | null>(null);
-  const isMouseDownRef = useRef<boolean>(false);
+  const pointerIdRef = useRef<number | null>(null);
 
-  const commitFlip = useCallback(() => {
-    if (!canFlipNext || !nextPage) return;
-    setPhase('flipping');
-    setProgress(1);
-    setTimeout(() => {
-      onFlipNext();
-      setProgress(0);
-      setPhase('idle');
-      triggeredRef.current = false;
-    }, 520);
-  }, [canFlipNext, nextPage, onFlipNext]);
+  const commitFlip = useCallback(
+    (dir: Direction) => {
+      if (dir === 'next' && (!canFlipNext || !nextPage)) return;
+      if (dir === 'prev' && (!canFlipPrev || !previousPage)) return;
+      setPhase('flipping');
+      setProgress(1);
+      setTimeout(() => {
+        if (dir === 'next') onFlipNext();
+        else onFlipPrev();
+        setProgress(0);
+        setPhase('idle');
+        triggeredRef.current = false;
+        directionRef.current = null;
+      }, 480);
+    },
+    [canFlipNext, nextPage, canFlipPrev, previousPage, onFlipNext, onFlipPrev]
+  );
 
-  const animateTo = useCallback((target: number, onDone?: () => void) => {
-    const start = performance.now();
-    const from = progress;
-    const delta = target - from;
-    const duration = 320;
-    const tick = (now: number) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setProgress(from + delta * eased);
-      if (t < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-      } else {
-        rafRef.current = null;
-        if (onDone) onDone();
-      }
-    };
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(tick);
-  }, [progress]);
+  const animateTo = useCallback(
+    (target: number, onDone?: () => void) => {
+      const start = performance.now();
+      const from = progress;
+      const delta = target - from;
+      const duration = 300;
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        setProgress(from + delta * eased);
+        if (t < 1) {
+          rafRef.current = requestAnimationFrame(tick);
+        } else {
+          rafRef.current = null;
+          if (onDone) onDone();
+        }
+      };
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(tick);
+    },
+    [progress]
+  );
+
+  const reset = useCallback(() => {
+    setProgress(0);
+    setPhase('idle');
+    directionRef.current = null;
+    lockedRef.current = false;
+    triggeredRef.current = false;
+    pointerIdRef.current = null;
+  }, []);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!canFlipNext || !nextPage) return;
       if (phase !== 'idle') return;
-      const target = e.currentTarget as HTMLDivElement;
-      const rect = target.getBoundingClientRect();
-      const localX = e.clientX - rect.left;
-      if (localX < rect.width * 0.35) return;
-      isMouseDownRef.current = true;
+      // Only react to primary pointer / touch / pen
+      if (!e.isPrimary) return;
+      pointerIdRef.current = e.pointerId;
       startXRef.current = e.clientX;
-      startProgressRef.current = 0;
+      startYRef.current = e.clientY;
+      lastXRef.current = e.clientX;
+      startTimeRef.current = performance.now();
+      lastTimeRef.current = startTimeRef.current;
       triggeredRef.current = false;
-      setPhase('dragging');
-      try {
-        target.setPointerCapture(e.pointerId);
-      } catch {}
+      directionRef.current = null;
+      lockedRef.current = false;
     },
-    [canFlipNext, nextPage, phase]
+    [phase]
   );
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (phase !== 'dragging') return;
-      const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-      const moved = startXRef.current - e.clientX;
-      const next = Math.max(0, Math.min(1, startProgressRef.current + moved / rect.width));
-      setProgress(next);
-      if (next > 0.55 && !triggeredRef.current) {
+      if (phase !== 'idle' || pointerIdRef.current !== e.pointerId) return;
+      const dx = e.clientX - startXRef.current;
+      const dy = e.clientY - startYRef.current;
+
+      // Decide whether the gesture is horizontal enough to lock.
+      if (!lockedRef.current) {
+        if (Math.abs(dx) < SWIPE_LOCK_PX && Math.abs(dy) < SWIPE_LOCK_PX) return;
+        // Lock only if horizontal motion dominates.
+        if (Math.abs(dx) < Math.abs(dy) * 1.1) return;
+
+        lockedRef.current = true;
+        const dir: Direction = dx < 0 ? 'next' : 'prev';
+        directionRef.current = dir;
+        if (dir === 'next' && (!canFlipNext || !nextPage)) {
+          // Locked into a no-op direction — release.
+          reset();
+          return;
+        }
+        if (dir === 'prev' && (!canFlipPrev || !previousPage)) {
+          reset();
+          return;
+        }
+        setDirection(dir);
+        setPhase(dir === 'next' ? 'dragging-next' : 'dragging-prev');
+        try {
+          (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+        } catch {}
+      }
+
+      const now = performance.now();
+      const dir = directionRef.current;
+      if (!dir) return;
+      const containerWidth = (e.currentTarget as HTMLDivElement).clientWidth || width;
+      // For "next" we want progress to grow as we drag left (dx < 0).
+      // For "prev" we want progress to grow as we drag right (dx > 0).
+      const signed = dir === 'next' ? -dx : dx;
+      const nextProgress = Math.max(0, Math.min(1, signed / containerWidth));
+      setProgress(nextProgress);
+
+      // Track velocity for fling-to-flip.
+      const dt = Math.max(1, now - lastTimeRef.current);
+      const vx = (e.clientX - lastXRef.current) / dt; // px per ms
+      lastXRef.current = e.clientX;
+      lastTimeRef.current = now;
+      const velocityProgress = dir === 'next' ? -vx : vx;
+
+      if (!triggeredRef.current && (nextProgress > COMMIT_THRESHOLD || velocityProgress > VELOCITY_COMMIT)) {
         triggeredRef.current = true;
-        commitFlip();
+        commitFlip(dir);
       }
     },
-    [phase, commitFlip]
+    [phase, width, canFlipNext, canFlipPrev, nextPage, previousPage, commitFlip, reset]
   );
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
-      if (phase !== 'dragging') return;
+      if (pointerIdRef.current !== e.pointerId) return;
       const target = e.currentTarget as HTMLDivElement;
       try {
         target.releasePointerCapture(e.pointerId);
       } catch {}
-      isMouseDownRef.current = false;
-      if (triggeredRef.current) return;
+      if (phase === 'idle' || !lockedRef.current) {
+        // Tap / click without motion — don't flip.
+        reset();
+        return;
+      }
+      if (triggeredRef.current) return; // already committing
+      const dir = directionRef.current;
+      if (!dir) {
+        reset();
+        return;
+      }
       setPhase('returning');
       animateTo(0, () => {
         setPhase('idle');
         setProgress(0);
+        directionRef.current = null;
+        lockedRef.current = false;
       });
+      // dir kept referenced so TS is happy
+      void dir;
     },
-    [phase, animateTo]
+    [phase, animateTo, reset]
   );
 
-  useEffect(() => {
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
+  const handlePointerCancel = useCallback(
+    (e: React.PointerEvent) => {
+      if (pointerIdRef.current !== e.pointerId) return;
+      const target = e.currentTarget as HTMLDivElement;
+      try {
+        target.releasePointerCapture(e.pointerId);
+      } catch {}
+      reset();
+    },
+    [reset]
+  );
 
-  const angle = -180 * progress;
-  const shadowOpacity = Math.min(0.35, progress * 0.7);
-  const showCursor =
-    phase === 'idle' && canFlipNext && nextPage;
-  const isFlippingForward =
-    phase === 'dragging' || (phase === 'flipping' && progress > 0);
+  useEffect(
+    () => () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    },
+    []
+  );
+
+  const isDraggingForward = phase === 'dragging-next' || (phase === 'flipping' && direction === 'next');
+  const isDraggingBackward = phase === 'dragging-prev' || (phase === 'flipping' && direction === 'prev');
+  const showOverlay = isDraggingForward || isDraggingBackward;
+  const sign = isDraggingBackward ? 1 : -1; // forward: rotateY negative; backward: rotateY positive
+  const angle = sign * 180 * progress;
+  const shadowOpacity = Math.min(0.4, progress * 0.75);
+  const frontPage = direction === 'prev' ? previousPage : currentPage;
+  const backPage = direction === 'prev' ? currentPage : nextPage;
+  const cursor = phase === 'idle' ? (canFlipNext || canFlipPrev ? 'grab' : 'default') : 'grabbing';
 
   return (
     <div
@@ -134,36 +238,43 @@ export const PageFlip: React.FC<PageFlipProps> = ({
         width,
         height,
         perspective: 1800,
-        perspectiveOrigin: 'left center',
+        perspectiveOrigin: 'center center',
         touchAction: 'pan-y',
       }}
     >
       {/* Static current page underneath */}
       <div
         className="absolute inset-0"
-        style={{
-          backfaceVisibility: 'hidden',
-        }}
+        style={{ backfaceVisibility: 'hidden' }}
       >
         {currentPage}
       </div>
 
+      {/* Full-screen swipe overlay (also acts as the gesture capture surface) */}
+      <div
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
+        className="absolute inset-0 z-20"
+        style={{ touchAction: 'pan-y', cursor }}
+      />
+
       {/* Flip layer */}
-      {canFlipNext && nextPage && isFlippingForward && (
+      {showOverlay && frontPage && backPage && (
         <div
           style={{
             position: 'absolute',
             inset: 0,
             transformStyle: 'preserve-3d',
             transform: `rotateY(${angle}deg)`,
-            transformOrigin: 'left center',
-            transition: phase === 'flipping' ? 'none' : 'none',
+            transformOrigin: isDraggingBackward ? 'right center' : 'left center',
             willChange: 'transform',
-            boxShadow: `${-shadowOpacity * 30}px 0 ${shadowOpacity * 30}px rgba(0,0,0,${shadowOpacity})`,
-            cursor: phase === 'dragging' ? 'grabbing' : 'grab',
+            boxShadow: `${-sign * shadowOpacity * 30}px 0 ${shadowOpacity * 30}px rgba(0,0,0,${shadowOpacity})`,
+            pointerEvents: 'none',
           }}
         >
-          {/* Front face: current page */}
+          {/* Front face */}
           <div
             style={{
               position: 'absolute',
@@ -172,9 +283,9 @@ export const PageFlip: React.FC<PageFlipProps> = ({
               background: '#FFFFFF',
             }}
           >
-            {currentPage}
+            {frontPage}
           </div>
-          {/* Back face: next page (mirrored) */}
+          {/* Back face (mirrored 180°) */}
           <div
             style={{
               position: 'absolute',
@@ -184,36 +295,8 @@ export const PageFlip: React.FC<PageFlipProps> = ({
               background: '#FFFFFF',
             }}
           >
-            {nextPage}
+            {backPage}
           </div>
-        </div>
-      )}
-
-      {/* Hover grab zone (right portion of page) */}
-      {showCursor && (
-        <div
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          className="absolute top-0 right-0 h-full z-10"
-          style={{
-            width: '60%',
-            cursor: 'grab',
-          }}
-        >
-          {/* Folded corner indicator (subtle) */}
-          <div
-            className="absolute top-0 right-0 pointer-events-none"
-            style={{
-              width: 56,
-              height: 56,
-              background:
-                'linear-gradient(225deg, rgba(90,90,64,0.18) 0%, rgba(90,90,64,0.0) 60%)',
-              borderTopRightRadius: 4,
-              opacity: 0.85,
-            }}
-          />
         </div>
       )}
     </div>

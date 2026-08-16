@@ -378,7 +378,9 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
               width={basePageSize.width * scale}
               height={basePageSize.height * scale}
               canFlipNext={pageNumber < numPages}
+              canFlipPrev={pageNumber > 1}
               onFlipNext={() => goToPage(pageNumber + 1)}
+              onFlipPrev={() => goToPage(pageNumber - 1)}
               currentPage={
                 <Document file={pdfUrl}>
                   <Page
@@ -390,6 +392,20 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
                     className="[&_canvas]:rounded-md bg-white"
                   />
                 </Document>
+              }
+              previousPage={
+                pageNumber > 1 ? (
+                  <Document file={pdfUrl}>
+                    <Page
+                      pageNumber={pageNumber - 1}
+                      width={basePageSize.width * scale}
+                      rotate={rotation}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      className="[&_canvas]:rounded-md bg-white"
+                    />
+                  </Document>
+                ) : null
               }
               nextPage={
                 pageNumber < numPages ? (
