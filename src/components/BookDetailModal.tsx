@@ -22,6 +22,7 @@ import {
   UserX,
   ExternalLink,
   Edit3,
+  ImageUp,
 } from 'lucide-react';
 
 interface BookDetailModalProps {
@@ -50,6 +51,27 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
   const [rotation, setRotation] = useState({ x: 5, y: -25, z: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const lastMousePos = useRef({ x: 0, y: 0 });
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Please choose an image under 5 MB.');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        onUpdateBook({ ...book, coverUrl: reader.result });
+        setIsOpenCover(true);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   // Note form state
   const [newNoteContent, setNewNoteContent] = useState('');
@@ -316,6 +338,23 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
                       title="Reset 3D Rotation"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+
+                    <input
+                      ref={coverInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleCoverUpload}
+                    />
+
+                    <button
+                      onClick={() => coverInputRef.current?.click()}
+                      className="px-3 py-2 rounded-full text-xs font-medium bg-[#5A5A40] hover:bg-[#4a4a33] text-white transition cursor-pointer flex items-center gap-1.5"
+                      title="Upload a cover image for this book"
+                    >
+                      <ImageUp className="w-3.5 h-3.5" />
+                      Upload Cover
                     </button>
 
                     <button

@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Book, ReadingStatus } from '../types';
 import { fetchBookByISBN, createNewBookRecord, cleanISBN } from '../services/bookFetcher';
-import { POPULAR_ISBN_PRESETS } from '../data/sampleBooks';
 import { Book3D } from './Book3D';
 import { sounds } from '../services/soundEffects';
 import {
@@ -402,30 +401,6 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({
                   </button>
                 </div>
               </form>
-
-              {/* Popular ISBN Presets for Quick Testing */}
-              <div>
-                <span className="text-xs text-[#8C867A] block mb-2 font-medium">
-                  Try Quick Popular Bookshelf Presets:
-                </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {POPULAR_ISBN_PRESETS.map((preset) => (
-                    <button
-                      key={preset.isbn}
-                      onClick={() => {
-                        setIsbnInput(preset.isbn);
-                        performFetch(preset.isbn);
-                      }}
-                      className="text-left p-3 rounded-xl bg-[#F5F2ED] hover:bg-[#FFFFFF] border border-[#D9D1C2] hover:border-[#5A5A40]/50 transition group shadow-sm cursor-pointer"
-                    >
-                      <p className="text-xs font-serif font-bold text-[#2C2C2C] group-hover:text-[#5A5A40] truncate">
-                        {preset.name}
-                      </p>
-                      <p className="text-[10px] text-[#8C867A] truncate mt-0.5">{preset.author}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
 

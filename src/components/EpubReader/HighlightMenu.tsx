@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { HighlightColor, EpubHighlight } from '../../types';
 import { HighlightingColors } from './readerConstants';
-import { MessageSquarePlus, Copy, Trash2, Check } from 'lucide-react';
+import { MessageSquarePlus, Copy, Trash2, Check, BookOpen } from 'lucide-react';
 
 interface HighlightMenuProps {
   position: { top: number; left: number };
@@ -11,6 +11,7 @@ interface HighlightMenuProps {
   onApplyHighlight: (color: HighlightColor, note?: string) => void;
   onRemoveHighlight?: (highlightId: string) => void;
   onClose: () => void;
+  onLookup?: (word: string) => void;
 }
 
 export const HighlightMenu: React.FC<HighlightMenuProps> = ({
@@ -21,6 +22,7 @@ export const HighlightMenu: React.FC<HighlightMenuProps> = ({
   onApplyHighlight,
   onRemoveHighlight,
   onClose,
+  onLookup,
 }) => {
   const [showNoteInput, setShowNoteInput] = useState(Boolean(existingHighlight?.note));
   const [noteText, setNoteText] = useState(existingHighlight?.note || '');
@@ -95,6 +97,19 @@ export const HighlightMenu: React.FC<HighlightMenuProps> = ({
             >
               {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
             </button>
+
+            {onLookup && (
+              <button
+                onClick={() => {
+                  onLookup(selectedText);
+                  onClose();
+                }}
+                className="p-1.5 rounded-lg text-stone-300 hover:text-white hover:bg-stone-800 transition"
+                title="Look up in dictionary (English → 繁體中文)"
+              >
+                <BookOpen className="w-4 h-4" />
+              </button>
+            )}
 
             {existingHighlight && onRemoveHighlight && (
               <button

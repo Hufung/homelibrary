@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Book, ViewMode, FilterOptions } from './types';
-import { SAMPLE_BOOKS } from './data/sampleBooks';
 import { Navbar } from './components/Navbar';
 import { Bookshelf3DView } from './components/Bookshelf3DView';
 import { BookGridView } from './components/BookGridView';
@@ -27,7 +26,7 @@ export default function App() {
     } catch {
       // Ignore parse error
     }
-    return SAMPLE_BOOKS;
+    return [];
   });
 
   // Shelf aesthetic theme
@@ -84,7 +83,7 @@ export default function App() {
 
   // Derive unique shelves list
   const allShelves = useMemo(() => {
-    const set = new Set<string>(['General', 'Personal Growth', 'Sci-Fi & Fantasy', 'Fiction & Literature', 'Tech & Code', 'History & Science']);
+    const set = new Set<string>();
     books.forEach((b) => {
       if (b.shelf) set.add(b.shelf);
     });
@@ -207,10 +206,10 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  const handleResetToSamples = () => {
-    if (confirm('Reset your library to the curated sample 3D bookshelf collection?')) {
-      setBooks(SAMPLE_BOOKS);
-      showToast('Restored sample books collection.');
+  const handleClearLibrary = () => {
+    if (confirm('Clear all books? This cannot be undone.')) {
+      setBooks([]);
+      showToast('Library cleared.');
     }
   };
 
@@ -272,11 +271,11 @@ export default function App() {
 
           <div className="flex items-center gap-4">
             <button
-              onClick={handleResetToSamples}
-              className="text-[#8C867A] hover:text-[#5A5A40] transition flex items-center gap-1"
+              onClick={handleClearLibrary}
+              className="text-[#8C867A] hover:text-rose-500 transition flex items-center gap-1"
             >
               <RefreshCw className="w-3 h-3" />
-              Reset Sample Books
+              Clear Library
             </button>
 
             <span>•</span>

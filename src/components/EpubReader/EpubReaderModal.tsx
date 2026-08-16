@@ -16,6 +16,7 @@ import { HighlightMenu } from './HighlightMenu';
 import { HighlightsDrawer } from './HighlightsDrawer';
 import { TocBookmarksDrawer, TocItem } from './TocBookmarksDrawer';
 import { ReaderSettingsModal } from './ReaderSettingsModal';
+import { DictionaryPanel } from '../Dictionary/DictionaryPanel';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -23,6 +24,7 @@ import {
   Highlighter,
   Bookmark,
   BookmarkCheck,
+  BookOpen,
   List,
   Type,
   Maximize2,
@@ -82,6 +84,8 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
   const [isTocOpen, setIsTocOpen] = useState(false);
   const [isHighlightsOpen, setIsHighlightsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDictionaryOpen, setIsDictionaryOpen] = useState(false);
+  const [dictWord, setDictWord] = useState('');
 
   // Data: Highlights & Bookmarks
   const [highlights, setHighlights] = useState<EpubHighlight[]>([]);
@@ -648,6 +652,18 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
               )}
             </button>
 
+            {/* Dictionary */}
+            <button
+              onClick={() => {
+                setDictWord('');
+                setIsDictionaryOpen(true);
+              }}
+              className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+              title="Dictionary (English to Traditional Chinese)"
+            >
+              <BookOpen className="w-4 h-4" />
+            </button>
+
             {/* Highlights Drawer Trigger */}
             <button
               onClick={() => setIsHighlightsOpen(true)}
@@ -764,6 +780,11 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
             onApplyHighlight={handleApplyHighlight}
             onRemoveHighlight={handleRemoveHighlight}
             onClose={() => setActiveSelection(null)}
+            onLookup={(word) => {
+              setActiveSelection(null);
+              setDictWord(word);
+              setIsDictionaryOpen(true);
+            }}
           />
         )}
       </div>
@@ -866,6 +887,13 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onUpdateSettings={(newSettings) => setSettings((s) => ({ ...s, ...newSettings }))}
+      />
+
+      <DictionaryPanel
+        bookId={book.id}
+        isOpen={isDictionaryOpen}
+        onClose={() => setIsDictionaryOpen(false)}
+        initialWord={dictWord}
       />
     </div>
   );
