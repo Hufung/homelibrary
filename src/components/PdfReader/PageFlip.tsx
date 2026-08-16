@@ -1,8 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 interface PageFlipProps {
+  /** The currently-displayed page with full text + annotation layers (interactive). */
+  currentPageInteractive: React.ReactNode;
+  /** Lightweight current-page render used on the flip layer's front face. */
   currentPage: React.ReactNode;
+  /** Lightweight next-page render used on the flip layer's back face. */
   nextPage: React.ReactNode | null;
+  /** Lightweight previous-page render used on the flip layer's front face when swiping back. */
   previousPage: React.ReactNode | null;
   canFlipNext: boolean;
   canFlipPrev: boolean;
@@ -16,10 +21,11 @@ type Phase = 'idle' | 'dragging-next' | 'dragging-prev' | 'flipping' | 'returnin
 type Direction = 'next' | 'prev';
 
 const COMMIT_THRESHOLD = 0.35;
-const VELOCITY_COMMIT = 0.55; // progress-units per millisecond-ish (unitless, but works)
+const VELOCITY_COMMIT = 0.55;
 const SWIPE_LOCK_PX = 8;
 
 export const PageFlip: React.FC<PageFlipProps> = ({
+  currentPageInteractive,
   currentPage,
   nextPage,
   previousPage,
@@ -220,9 +226,12 @@ export const PageFlip: React.FC<PageFlipProps> = ({
     []
   );
 
-  const isDraggingForward = phase === 'dragging-next' || (phase === 'flipping' && direction === 'next');
-  const isDraggingBackward = phase === 'dragging-prev' || (phase === 'flipping' && direction === 'prev');
-  const showOverlay = isDraggingForward || isDraggingBackward;
+  const isDraggingForward =
+    phase === 'dragging-next' || (phase === 'flipping' && direction === 'next');
+  const isDraggingBackward =
+    phase === 'dragging-prev' || (phase === 'flipping' && direction === 'prev');
+  const showOverlay =
+    isDraggingForward || isDraggingBackward || phase === 'returning';
   const sign = isDraggingBackward ? 1 : -1; // forward: rotateY negative; backward: rotateY positive
   const angle = sign * 180 * progress;
   const shadowOpacity = Math.min(0.4, progress * 0.75);
@@ -242,13 +251,18 @@ export const PageFlip: React.FC<PageFlipProps> = ({
         touchAction: 'pan-y',
       }}
     >
-      {/* Static current page underneath */}
-      <div
-        className="absolute inset-0"
-        style={{ backfaceVisibility: 'hidden' }}
-      >
-        {currentPage}
-      </div>
+      {/* Static current page underneath — only when idle. While a flip is in
+          progress the flip layer's front face already shows the same page, so
+          rendering the static layer here would produce a "same page twice"
+          duplicate. */}
+      {!showOverlay && (
+        <div
+          className="absolute inset-0"
+          style={{ backfaceVisibility: 'hidden' }}
+        >
+          {currentPageInteractive}
+        </div>
+      )}
 
       {/* Full-screen swipe overlay (also acts as the gesture capture surface) */}
       <div

@@ -354,26 +354,6 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
               height: basePageSize.height * scale,
             }}
           >
-            <Document
-              file={pdfUrl}
-              onLoadSuccess={handleLoadSuccess}
-              onLoadError={() => setError('This PDF could not be rendered.')}
-            >
-              <Page
-                pageNumber={pageNumber}
-                width={basePageSize.width * scale}
-                rotate={rotation}
-                renderTextLayer={scale >= 0.8}
-                renderAnnotationLayer={true}
-                className="[&_canvas]:rounded-md bg-white"
-                onLoadSuccess={(p) =>
-                  setBasePageSize({
-                    width: p.originalWidth,
-                    height: p.originalHeight,
-                  })
-                }
-              />
-            </Document>
             <PageFlip
               width={basePageSize.width * scale}
               height={basePageSize.height * scale}
@@ -381,6 +361,28 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
               canFlipPrev={pageNumber > 1}
               onFlipNext={() => goToPage(pageNumber + 1)}
               onFlipPrev={() => goToPage(pageNumber - 1)}
+              currentPageInteractive={
+                <Document
+                  file={pdfUrl}
+                  onLoadSuccess={handleLoadSuccess}
+                  onLoadError={() => setError('This PDF could not be rendered.')}
+                >
+                  <Page
+                    pageNumber={pageNumber}
+                    width={basePageSize.width * scale}
+                    rotate={rotation}
+                    renderTextLayer={scale >= 0.8}
+                    renderAnnotationLayer={true}
+                    className="[&_canvas]:rounded-md bg-white"
+                    onLoadSuccess={(p) =>
+                      setBasePageSize({
+                        width: p.originalWidth,
+                        height: p.originalHeight,
+                      })
+                    }
+                  />
+                </Document>
+              }
               currentPage={
                 <Document file={pdfUrl}>
                   <Page
