@@ -107,7 +107,7 @@ export async function fetchBookByISBN(rawIsbn: string): Promise<FetchBookResult>
         const title = item.title || 'Untitled Book';
         const authors = item.authors ? item.authors.map((a: { name: string }) => a.name) : ['Unknown Author'];
         const coverUrl = item.cover?.large || item.cover?.medium || `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
-        const categories = item.subjects ? item.subjects.slice(0, 3).map((s: { name: string }) => s.name) : ['General'];
+        const categories = item.subjects ? item.subjects.slice(0, 3).map((s: { name: string }) => s.name) : [];
         const palette = getRandomSpinePalette(title + isbn);
 
         const book: Partial<Book> = {
@@ -164,7 +164,7 @@ export async function fetchBookByISBN(rawIsbn: string): Promise<FetchBookResult>
   throw new Error(`Could not find book details for ISBN: ${isbn}. You can still add it manually!`);
 }
 
-export function createNewBookRecord(data: Partial<Book>, initialShelf: string = 'General'): Book {
+export function createNewBookRecord(data: Partial<Book>, initialShelf: string = ''): Book {
   const palette = getRandomSpinePalette((data.title || '') + (data.isbn || ''));
   const pageCount = data.pageCount && data.pageCount > 0 ? data.pageCount : 250;
   const status: ReadingStatus = data.status || 'to-read';

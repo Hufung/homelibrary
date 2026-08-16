@@ -12,7 +12,7 @@ import { PdfReaderModal } from './components/PdfReader/PdfReaderModal';
 import { sounds } from './services/soundEffects';
 import { Sparkles, BookOpen, Layers, RefreshCw, Heart, CheckCircle2 } from 'lucide-react';
 
-const STORAGE_KEY = 'bibliotheca_3d_books_v1';
+const STORAGE_KEY = 'bibliotheca_3d_books_v2';
 const THEME_KEY = 'bibliotheca_3d_shelf_theme';
 
 export default function App() {

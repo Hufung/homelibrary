@@ -202,7 +202,7 @@ export const BookDetailModal: React.FC<BookDetailModalProps> = ({
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#EAE4D9] bg-[#F5F2ED]">
           <div className="flex items-center gap-3">
             <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[#EAE4D9] text-[#5A5A40] border border-[#D9D1C2]">
-              {book.shelf || 'General'}
+              {book.shelf || 'Unshelved'}
             </span>
             <span className="text-xs text-[#8C867A] font-mono">
               ISBN: {book.isbn}

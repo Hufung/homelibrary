@@ -38,7 +38,7 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({
   const [fetchedBook, setFetchedBook] = useState<Partial<Book> | null>(null);
   
   // Customizable fields before saving
-  const [selectedShelf, setSelectedShelf] = useState(existingShelves[0] || 'General');
+  const [selectedShelf, setSelectedShelf] = useState(existingShelves[0] || '');
   const [newShelfName, setNewShelfName] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<ReadingStatus>('to-read');
   const [batchMode, setBatchMode] = useState(false);
@@ -197,6 +197,10 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({
     if (!fetchedBook) return;
 
     const shelf = newShelfName.trim() || selectedShelf;
+    if (!shelf) {
+      setErrorMessage('Please enter a shelf name (choose one or type a new shelf) before adding.');
+      return;
+    }
     const bookToAdd = createNewBookRecord(
       {
         ...fetchedBook,
@@ -496,6 +500,9 @@ export const ScannerModal: React.FC<ScannerModalProps> = ({
                     onChange={(e) => setSelectedShelf(e.target.value)}
                     className="w-full bg-[#FFFFFF] border border-[#D9D1C2] rounded-xl px-3 py-2 text-xs text-[#2C2C2C] outline-none"
                   >
+                    <option value="" disabled>
+                      {existingShelves.length ? 'Select an existing shelf...' : 'No shelves yet — type a new shelf below'}
+                    </option>
                     {existingShelves.map((s) => (
                       <option key={s} value={s}>
                         {s}

@@ -60,7 +60,8 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
 
   // Assignment options
   const [mode, setMode] = useState<'new-book' | 'attach-existing'>('new-book');
-  const [selectedShelf, setSelectedShelf] = useState<string>('General');
+  const [selectedShelf, setSelectedShelf] = useState<string>('');
+  const [newShelfName, setNewShelfName] = useState('');
   const [selectedExistingBookId, setSelectedExistingBookId] = useState<string>(
     existingBooks[0]?.id || ''
   );
@@ -169,6 +170,11 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
       let targetBook: Book;
 
       if (mode === 'new-book') {
+        const targetShelf = newShelfName.trim() || selectedShelf;
+        if (!targetShelf) {
+          setErrorMessage('Please choose or type a shelf for this book before saving.');
+          return;
+        }
         const newBookId = `epub-${Date.now()}`;
         const isPdf = parsedData.format === 'pdf';
         const newBook: Book = {
@@ -186,7 +192,7 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
           status: 'reading',
           rating: 5,
           progressPages: 0,
-          shelf: selectedShelf,
+          shelf: targetShelf,
           notes: [],
           quotes: [],
           addedAt: new Date().toISOString(),
@@ -408,12 +414,22 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
                       onChange={(e) => setSelectedShelf(e.target.value)}
                       className="w-full bg-[#FFFFFF] border border-[#D9D1C2] rounded-xl p-2.5 text-xs text-[#2C2C2C] outline-none"
                     >
+                      <option value="" disabled>
+                        Select a shelf for this book...
+                      </option>
                       {allShelves.map((s) => (
                         <option key={s} value={s}>
                           {s}
                         </option>
                       ))}
                     </select>
+                    <input
+                      type="text"
+                      value={newShelfName}
+                      onChange={(e) => setNewShelfName(e.target.value)}
+                      placeholder="Or type a new shelf name..."
+                      className="w-full bg-[#FFFFFF] border border-[#D9D1C2] rounded-xl p-2.5 text-xs text-[#2C2C2C] outline-none placeholder:text-[#A69F92]"
+                    />
                   </div>
                 ) : (
                   <div className="space-y-1.5 pt-1">

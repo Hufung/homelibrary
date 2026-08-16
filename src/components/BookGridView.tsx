@@ -60,7 +60,7 @@ export const BookGridView: React.FC<BookGridViewProps> = ({
             {/* Top Bar with Shelf Tag & Favorite Toggle */}
             <div className="flex items-center justify-between gap-2 mb-4">
               <span className="text-[11px] font-semibold px-3 py-1 rounded-full bg-[#EAE4D9] text-[#5A5A40] border border-[#D9D1C2] truncate max-w-[140px]">
-                {book.shelf || 'General'}
+                {book.shelf || 'Unshelved'}
               </span>
 
               <div className="flex items-center gap-1">
