@@ -3,6 +3,7 @@ import { Book, ReadingStatus } from '../../types';
 import { extractEpubMetadata, createSampleEpubBlob } from '../../services/epubParser';
 import { epubStorage } from '../../services/epubStorage';
 import { sounds } from '../../services/soundEffects';
+import { generatePdfFirstPageCover, generateEpubFirstPageCover } from '../../services/coverGenerator';
 import {
   Upload,
   BookOpen,
@@ -56,7 +57,9 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
     publisher: string;
     language: string;
     pageEstimate: number;
+    coverIsGenerated?: boolean;
   } | null>(null);
+  const [isGeneratingCover, setIsGeneratingCover] = useState(false);
 
   // Assignment options
   const [mode, setMode] = useState<'new-book' | 'attach-existing'>('new-book');
@@ -90,14 +93,24 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
           title: baseTitle || 'Untitled PDF',
           authors: ['Unknown Author'],
           description: 'Imported PDF file. Reading view is optimized for tablets & desktop.',
-          coverUrl:
-            'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=600&auto=format&fit=crop&q=80',
+          coverUrl: '',
           publisher: 'Imported PDF',
           language: 'en',
           pageEstimate: 1,
         });
+        setIsGeneratingCover(true);
+        (async () => {
+          const generated = await generatePdfFirstPageCover(buffer);
+          setParsedData((prev) =>
+            prev && !prev.coverUrl && generated
+              ? { ...prev, coverUrl: generated, coverIsGenerated: true }
+              : prev
+          );
+          setIsGeneratingCover(false);
+        })();
       } else {
         const meta = await extractEpubMetadata(buffer);
+        const hasMetaCover = !!meta.coverDataUrl;
         setParsedData({
           format,
           file,
@@ -106,13 +119,24 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
           title: meta.title,
           authors: meta.authors,
           description: meta.description,
-          coverUrl:
-            meta.coverDataUrl ||
-            `https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=600&auto=format&fit=crop&q=80`,
+          coverUrl: meta.coverDataUrl || '',
           publisher: meta.publisher || 'Independent EPUB',
           language: meta.language || 'en',
           pageEstimate: meta.spineItemCount,
+          coverIsGenerated: false,
         });
+        if (!hasMetaCover) {
+          setIsGeneratingCover(true);
+          (async () => {
+            const generated = await generateEpubFirstPageCover(buffer);
+            setParsedData((prev) =>
+              prev && !prev.coverUrl && generated
+                ? { ...prev, coverUrl: generated, coverIsGenerated: true }
+                : prev
+            );
+            setIsGeneratingCover(false);
+          })();
+        }
       }
 
       sounds.playScanSuccess();
@@ -343,11 +367,30 @@ export const EpubUploadModal: React.FC<EpubUploadModalProps> = ({
             /* Parsed EPUB Confirmation View */
             <div className="space-y-5">
               <div className="bg-[#FFFFFF] border border-[#D9D1C2] rounded-2xl p-4 flex gap-4 shadow-sm">
-                <img
-                  src={parsedData.coverUrl}
-                  alt={parsedData.title}
-                  className="w-20 h-28 object-cover rounded-xl shadow-md flex-shrink-0 border border-[#D9D1C2]"
-                />
+                <div className="relative w-20 h-28 flex-shrink-0">
+                  {parsedData.coverUrl ? (
+                    <img
+                      src={parsedData.coverUrl}
+                      alt={parsedData.title}
+                      className="w-20 h-28 object-cover rounded-xl shadow-md border border-[#D9D1C2]"
+                    />
+                  ) : (
+                    <div className="w-20 h-28 rounded-xl border border-[#D9D1C2] bg-[#F5F2ED] flex flex-col items-center justify-center text-[#A69F92] text-[10px] gap-1">
+                      <Sparkles className="w-4 h-4 animate-pulse" />
+                      <span className="px-1 text-center leading-tight">Generating cover</span>
+                    </div>
+                  )}
+                  {isGeneratingCover && parsedData.coverUrl && (
+                    <div className="absolute inset-0 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center text-[#5A5A40]">
+                      <Sparkles className="w-4 h-4 animate-spin" />
+                    </div>
+                  )}
+                  {parsedData.coverIsGenerated && !isGeneratingCover && (
+                    <span className="absolute -bottom-1.5 -right-1.5 text-[9px] bg-[#5A5A40] text-white px-1.5 py-0.5 rounded-full shadow">
+                      First page
+                    </span>
+                  )}
+                </div>
                 <div className="flex-1 min-w-0 space-y-1">
                   <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                     parsedData.format === 'pdf'

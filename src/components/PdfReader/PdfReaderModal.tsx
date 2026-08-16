@@ -6,6 +6,7 @@ import { Book, EpubBookmark } from '../../types';
 import { epubStorage } from '../../services/epubStorage';
 import { sounds } from '../../services/soundEffects';
 import { DictionaryPanel } from '../Dictionary/DictionaryPanel';
+import { PageFlip } from './PageFlip';
 import {
   X,
   ChevronLeft,
@@ -44,6 +45,10 @@ const SCALE_STEP = 0.25;
 export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, onUpdateBook }) => {
   const [pdfData, setPdfData] = useState<ArrayBuffer | null>(null);
   const [numPages, setNumPages] = useState<number>(0);
+  const [basePageSize, setBasePageSize] = useState<{ width: number; height: number }>({
+    width: 600,
+    height: 800,
+  });
   const [pageNumber, setPageNumber] = useState<number>(book.lastReadPdfPage || 1);
   const [scale, setScale] = useState<number>(1);
   const [rotation, setRotation] = useState<number>(0);
@@ -324,21 +329,66 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
         )}
 
         {!loading && !error && pdfData && (
-          <Document
-            file={pdfData}
-            onLoadSuccess={handleLoadSuccess}
-            onLoadError={() => setError('This PDF could not be rendered.')}
-            className="drop-shadow-2xl"
+          <div
+            className="relative drop-shadow-2xl"
+            style={{
+              width: basePageSize.width * scale,
+              height: basePageSize.height * scale,
+            }}
           >
-            <Page
-              pageNumber={pageNumber}
-              scale={scale}
-              rotate={rotation}
-              renderTextLayer={scale >= 0.8}
-              renderAnnotationLayer={true}
-              className="[&_canvas]:rounded-md bg-white"
+            <Document
+              file={pdfData}
+              onLoadSuccess={handleLoadSuccess}
+              onLoadError={() => setError('This PDF could not be rendered.')}
+            >
+              <Page
+                pageNumber={pageNumber}
+                width={basePageSize.width * scale}
+                rotate={rotation}
+                renderTextLayer={scale >= 0.8}
+                renderAnnotationLayer={true}
+                className="[&_canvas]:rounded-md bg-white"
+                onLoadSuccess={(p) =>
+                  setBasePageSize({
+                    width: p.originalWidth,
+                    height: p.originalHeight,
+                  })
+                }
+              />
+            </Document>
+            <PageFlip
+              width={basePageSize.width * scale}
+              height={basePageSize.height * scale}
+              canFlipNext={pageNumber < numPages}
+              onFlipNext={() => goToPage(pageNumber + 1)}
+              currentPage={
+                <Document file={pdfData}>
+                  <Page
+                    pageNumber={pageNumber}
+                    width={basePageSize.width * scale}
+                    rotate={rotation}
+                    renderTextLayer={false}
+                    renderAnnotationLayer={false}
+                    className="[&_canvas]:rounded-md bg-white"
+                  />
+                </Document>
+              }
+              nextPage={
+                pageNumber < numPages ? (
+                  <Document file={pdfData}>
+                    <Page
+                      pageNumber={pageNumber + 1}
+                      width={basePageSize.width * scale}
+                      rotate={rotation}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      className="[&_canvas]:rounded-md bg-white"
+                    />
+                  </Document>
+                ) : null
+              }
             />
-          </Document>
+          </div>
         )}
       </div>
 
