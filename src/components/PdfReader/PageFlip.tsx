@@ -116,6 +116,9 @@ export const PageFlip: React.FC<PageFlipProps> = ({
       triggeredRef.current = false;
       directionRef.current = null;
       lockedRef.current = false;
+      try {
+        (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+      } catch {}
     },
     [phase]
   );

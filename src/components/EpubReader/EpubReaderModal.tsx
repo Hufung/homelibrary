@@ -17,6 +17,8 @@ import { HighlightsDrawer } from './HighlightsDrawer';
 import { TocBookmarksDrawer, TocItem } from './TocBookmarksDrawer';
 import { ReaderSettingsModal } from './ReaderSettingsModal';
 import { DictionaryPanel } from '../Dictionary/DictionaryPanel';
+import { vocabStorage, VocabWord } from '../../services/vocabStorage';
+import { VocabDrawer } from '../Dictionary/VocabDrawer';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -36,6 +38,7 @@ import {
   Moon,
   Sun,
   X,
+  GraduationCap,
 } from 'lucide-react';
 
 interface EpubReaderModalProps {
@@ -85,7 +88,9 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
   const [isHighlightsOpen, setIsHighlightsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDictionaryOpen, setIsDictionaryOpen] = useState(false);
+  const [isVocabOpen, setIsVocabOpen] = useState(false);
   const [dictWord, setDictWord] = useState('');
+  const [vocabWords, setVocabWords] = useState<VocabWord[]>(vocabStorage.getAll());
 
   // Data: Highlights & Bookmarks
   const [highlights, setHighlights] = useState<EpubHighlight[]>([]);
@@ -664,6 +669,15 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
               <BookOpen className="w-4 h-4" />
             </button>
 
+            {/* Vocabulary Book */}
+            <button
+              onClick={() => setIsVocabOpen(true)}
+              className="p-2 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer"
+              title="Vocabulary Book"
+            >
+              <GraduationCap className="w-4 h-4" />
+            </button>
+
             {/* Highlights Drawer Trigger */}
             <button
               onClick={() => setIsHighlightsOpen(true)}
@@ -890,10 +904,21 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
       />
 
       <DictionaryPanel
-        bookId={book.id}
         isOpen={isDictionaryOpen}
         onClose={() => setIsDictionaryOpen(false)}
         initialWord={dictWord}
+        onAddToVocab={(word, translation) => {
+          const next = vocabStorage.add(word, translation, book.title);
+          setVocabWords(next);
+        }}
+        vocabWords={vocabStorage.getWords()}
+      />
+
+      <VocabDrawer
+        isOpen={isVocabOpen}
+        onClose={() => setIsVocabOpen(false)}
+        words={vocabWords}
+        onRefresh={() => setVocabWords(vocabStorage.getAll())}
       />
     </div>
   );

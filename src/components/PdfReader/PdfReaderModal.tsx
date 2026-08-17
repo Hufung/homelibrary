@@ -6,9 +6,12 @@ import { Book, EpubBookmark } from '../../types';
 import { epubStorage } from '../../services/epubStorage';
 import { sounds } from '../../services/soundEffects';
 import { DictionaryPanel } from '../Dictionary/DictionaryPanel';
+import { vocabStorage, VocabWord } from '../../services/vocabStorage';
+import { VocabDrawer } from '../Dictionary/VocabDrawer';
 import { PageFlip } from './PageFlip';
 import {
   X,
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   ZoomIn,
@@ -25,6 +28,7 @@ import {
   Trash2,
   ExternalLink,
   List,
+  GraduationCap,
 } from 'lucide-react';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -77,7 +81,9 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
   const [bookmarks, setBookmarks] = useState<EpubBookmark[]>([]);
   const [isBookmarksOpen, setIsBookmarksOpen] = useState<boolean>(false);
   const [isDictionaryOpen, setIsDictionaryOpen] = useState<boolean>(false);
+  const [isVocabOpen, setIsVocabOpen] = useState<boolean>(false);
   const [dictWord, setDictWord] = useState<string>('');
+  const [vocabWords, setVocabWords] = useState<VocabWord[]>(vocabStorage.getAll());
 
   useEffect(() => {
     (async () => {
@@ -319,7 +325,15 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
             title="Open dictionary"
           >
             <BookOpen className="w-4 h-4" />
-            <span className="text-xs font-semibold hidden sm:inline">Dictionary</span>
+            <span className="hidden sm:inline text-xs font-medium">Dictionary</span>
+          </button>
+          <button
+            onClick={() => setIsVocabOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[#5A5A40] hover:bg-[#EAE4D9] transition cursor-pointer"
+            title="Vocabulary book"
+          >
+            <GraduationCap className="w-4 h-4" />
+            <span className="hidden sm:inline text-xs font-medium">Vocab</span>
           </button>
         </div>
       </div>
@@ -528,10 +542,22 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
 
       {/* Dictionary Panel */}
       <DictionaryPanel
-        bookId={book.id}
         isOpen={isDictionaryOpen}
         onClose={() => setIsDictionaryOpen(false)}
         initialWord={dictWord}
+        onAddToVocab={(word, translation) => {
+          const next = vocabStorage.add(word, translation, book.title);
+          setVocabWords(next);
+        }}
+        vocabWords={vocabStorage.getWords()}
+      />
+
+      {/* Vocabulary Drawer */}
+      <VocabDrawer
+        isOpen={isVocabOpen}
+        onClose={() => setIsVocabOpen(false)}
+        words={vocabWords}
+        onRefresh={() => setVocabWords(vocabStorage.getAll())}
       />
     </div>
   );
