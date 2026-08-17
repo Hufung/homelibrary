@@ -214,7 +214,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F9F7F2] text-[#3D3A35] flex flex-col font-sans selection:bg-[#5A5A40]/20 selection:text-[#5A5A40]">
+    <div className="min-h-screen bg-[#F9F7F2] text-[#3D3A35] flex flex-col font-sans antialiased selection:bg-[#5A5A40]/20 selection:text-[#5A5A40]">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-20 right-6 z-50 bg-[#EAE4D9] border border-[#D9D1C2] text-[#5A5A40] px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2.5 text-xs font-semibold animate-in fade-in slide-in-from-top-4 duration-200">
@@ -239,7 +239,7 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 md:px-8 py-6">
         {/* Active View Selection */}
         {viewMode === 'bookshelf-3d' ? (
           <Bookshelf3DView
@@ -262,7 +262,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[#EAE4D9] bg-[#F5F2ED] py-6 px-4 text-center text-xs text-[#8C867A]">
+      <footer className="border-t border-[#EAE4D9] bg-[#F5F2ED] py-6 md:py-8 px-4 md:px-6 text-center text-xs text-[#8C867A]">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="flex items-center gap-1.5">
             <span className="text-[#5A5A40] font-serif font-bold">Bibliotheca 3D</span>

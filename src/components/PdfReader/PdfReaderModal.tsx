@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -56,8 +56,11 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
   });
   const [pageNumber, setPageNumber] = useState<number>(book.lastReadPdfPage || 1);
   const [scale, setScale] = useState<number>(1);
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
   const [rotation, setRotation] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
+  const viewerRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState<boolean>(false);
 
@@ -227,6 +230,76 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
     setIsDictionaryOpen(true);
   };
 
+  // Ctrl+scroll wheel zoom on the viewer area
+  useEffect(() => {
+    const el = viewerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const delta = -e.deltaY * 0.005;
+      setScale((s) => Math.max(MIN_SCALE, Math.min(MAX_SCALE, +(s * (1 + delta)).toFixed(2))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // Touch pinch-to-zoom and double-tap zoom on the viewer area
+  useEffect(() => {
+    const el = viewerRef.current;
+    if (!el) return;
+
+    let pinchDist = 0;
+    let pinchScale = 1;
+    let lastTap = 0;
+    let touchCount = 0;
+
+    const getDist = (t1: Touch, t2: Touch) =>
+      Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+    const onTouchStart = (e: TouchEvent) => {
+      touchCount = e.touches.length;
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        pinchDist = getDist(e.touches[0], e.touches[1]);
+        pinchScale = scaleRef.current;
+      } else if (e.touches.length === 1) {
+        const now = Date.now();
+        if (now - lastTap < 300) {
+          e.preventDefault();
+          const newScale = scaleRef.current >= 1.5 ? 1 : 2;
+          setScale(Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale)));
+          lastTap = 0;
+        } else {
+          lastTap = now;
+        }
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchDist > 0) {
+        e.preventDefault();
+        const dist = getDist(e.touches[0], e.touches[1]);
+        const ratio = dist / pinchDist;
+        setScale(Math.max(MIN_SCALE, Math.min(MAX_SCALE, +(pinchScale * ratio).toFixed(2))));
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinchDist = 0;
+      if (e.touches.length === 0) touchCount = 0;
+    };
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    el.addEventListener('touchend', onTouchEnd);
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight' || e.key === 'PageDown') goToPage(pageNumber + 1);
     if (e.key === 'ArrowLeft' || e.key === 'PageUp') goToPage(pageNumber - 1);
@@ -241,7 +314,7 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
       tabIndex={0}
     >
       {/* Top Toolbar */}
-      <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 bg-[#F5F2ED] border-b border-[#D9D1C2] shadow-sm flex-wrap gap-2">
+      <div className="flex items-center justify-between px-3 md:px-6 py-2.5 bg-[#F5F2ED] border-b border-[#D9D1C2] shadow-sm flex-wrap gap-2">
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={onClose}
@@ -254,7 +327,7 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
             <FileText className="w-4 h-4" />
           </div>
           <div className="min-w-0">
-            <h2 className="font-serif font-bold text-sm sm:text-base text-[#2C2C2C] truncate max-w-[40vw] sm:max-w-xs">
+            <h2 className="font-serif font-bold text-sm md:text-base text-[#2C2C2C] truncate max-w-[35vw] md:max-w-xs">
               {book.title}
             </h2>
             <p className="text-[11px] text-[#8C867A] truncate">
@@ -308,7 +381,7 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
             title={isCurrentPageBookmarked ? 'Remove bookmark from this page' : 'Bookmark this page'}
           >
             {isCurrentPageBookmarked ? <BookmarkCheck className="w-4 h-4" /> : <Bookmark className="w-4 h-4" />}
-            <span className="text-xs font-semibold hidden sm:inline">
+            <span className="text-xs font-semibold hidden md:inline">
               {bookmarks.length > 0 ? `Bookmarks (${bookmarks.length})` : 'Bookmark'}
             </span>
           </button>
@@ -325,7 +398,7 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
             title="Open dictionary"
           >
             <BookOpen className="w-4 h-4" />
-            <span className="hidden sm:inline text-xs font-medium">Dictionary</span>
+            <span className="hidden md:inline text-xs font-medium">Dictionary</span>
           </button>
           <button
             onClick={() => setIsVocabOpen(true)}
@@ -333,13 +406,13 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
             title="Vocabulary book"
           >
             <GraduationCap className="w-4 h-4" />
-            <span className="hidden sm:inline text-xs font-medium">Vocab</span>
+            <span className="hidden md:inline text-xs font-medium">Vocab</span>
           </button>
         </div>
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-auto flex flex-col items-center p-4 sm:p-6 bg-[#ECE7DE] relative">
+      <div ref={viewerRef} className="flex-1 overflow-auto flex flex-col items-center p-4 sm:p-6 bg-[#ECE7DE] relative">
         {error && (
           <div className="flex flex-col items-center justify-center h-full text-center gap-3 p-8">
             <AlertTriangle className="w-10 h-10 text-rose-500" />
@@ -376,38 +449,38 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
               onFlipNext={() => goToPage(pageNumber + 1)}
               onFlipPrev={() => goToPage(pageNumber - 1)}
               currentPageInteractive={
-                <Document
-                  file={pdfUrl}
-                  onLoadSuccess={handleLoadSuccess}
-                  onLoadError={() => setError('This PDF could not be rendered.')}
-                >
-                  <Page
-                    pageNumber={pageNumber}
-                    width={basePageSize.width * scale}
-                    rotate={rotation}
-                    renderTextLayer={scale >= 0.8}
-                    renderAnnotationLayer={true}
-                    className="[&_canvas]:rounded-md bg-white"
-                    onLoadSuccess={(p) =>
-                      setBasePageSize({
-                        width: p.originalWidth,
-                        height: p.originalHeight,
-                      })
-                    }
-                  />
-                </Document>
+              <Document
+                file={pdfUrl}
+                onLoadSuccess={handleLoadSuccess}
+                onLoadError={() => setError('This PDF could not be rendered.')}
+              >
+                <Page
+                  pageNumber={pageNumber}
+                  width={basePageSize.width * scale}
+                  rotate={rotation}
+                  renderTextLayer={scale >= 0.8}
+                  renderAnnotationLayer={true}
+                  className="[&_canvas]:rounded-md bg-white"
+                  onLoadSuccess={(p) =>
+                    setBasePageSize({
+                      width: p.originalWidth,
+                      height: p.originalHeight,
+                    })
+                  }
+                />
+              </Document>
               }
               currentPage={
-                <Document file={pdfUrl}>
-                  <Page
-                    pageNumber={pageNumber}
-                    width={basePageSize.width * scale}
-                    rotate={rotation}
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                    className="[&_canvas]:rounded-md bg-white"
-                  />
-                </Document>
+              <Document file={pdfUrl}>
+                <Page
+                  pageNumber={pageNumber}
+                  width={basePageSize.width * scale}
+                  rotate={rotation}
+                  renderTextLayer={false}
+                  renderAnnotationLayer={false}
+                  className="[&_canvas]:rounded-md bg-white"
+                />
+              </Document>
               }
               previousPage={
                 pageNumber > 1 ? (

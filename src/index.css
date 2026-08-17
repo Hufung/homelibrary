@@ -126,3 +126,16 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(140, 140, 140, 0.5);
 }
+
+@media (min-width: 768px) and (max-width: 1024px) {
+  .book-grid-card {
+    min-height: 260px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

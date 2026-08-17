@@ -106,7 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="3D Bookshelf View"
               >
                 <Layers className="w-3.5 h-3.5" />
-                <span className="hidden lg:inline">3D Shelf</span>
+                <span className="hidden md:inline">3D Shelf</span>
               </button>
 
               <button

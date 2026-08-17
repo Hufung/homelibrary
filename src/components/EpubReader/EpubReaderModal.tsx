@@ -39,6 +39,8 @@ import {
   Sun,
   X,
   GraduationCap,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
 interface EpubReaderModalProps {
@@ -257,6 +259,7 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
           minSpreadWidth: 800,
         });
         renditionRef.current = rendition;
+        (rendition as any)._zoomLevel = 1;
 
         // Apply theme
         applyRenditionStyles(rendition, settings);
@@ -361,19 +364,59 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
         rendition.hooks.content.register((contents: any) => {
           let touchStartX = 0;
           let touchStartY = 0;
+          let lastTapTime = 0;
+          let pinchDist = 0;
+
+          const getPinchDist = (t1: Touch, t2: Touch) =>
+            Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
 
           contents.document.addEventListener('touchstart', (e: TouchEvent) => {
-            touchStartX = e.changedTouches[0].clientX;
-            touchStartY = e.changedTouches[0].clientY;
-          });
+            if (e.touches.length === 2) {
+              e.preventDefault();
+              pinchDist = getPinchDist(e.touches[0], e.touches[1]);
+              return;
+            }
+            if (e.touches.length === 1) {
+              touchStartX = e.touches[0].clientX;
+              touchStartY = e.touches[0].clientY;
+            }
+          }, { passive: false });
+
+          contents.document.addEventListener('touchmove', (e: TouchEvent) => {
+            if (e.touches.length === 2 && pinchDist > 0) {
+              e.preventDefault();
+              const dist = getPinchDist(e.touches[0], e.touches[1]);
+              const ratio = dist / pinchDist;
+              const base = (rendition as any)._zoomLevel || 1;
+              const newZoom = Math.max(0.5, Math.min(3, base * ratio));
+              (rendition as any)._zoomLevel = newZoom;
+              try { (rendition as any).zoom(newZoom); } catch {}
+            }
+          }, { passive: false });
 
           contents.document.addEventListener('touchend', (e: TouchEvent) => {
+            if (e.touches.length < 2 && pinchDist > 0) {
+              pinchDist = 0;
+              return;
+            }
+            if (e.touches.length > 0) return;
+
             const touchEndX = e.changedTouches[0].clientX;
             const touchEndY = e.changedTouches[0].clientY;
             const deltaX = touchEndX - touchStartX;
             const deltaY = touchEndY - touchStartY;
+            const now = Date.now();
 
-            // Horizontal Swipe navigation
+            if (Math.abs(deltaX) < 15 && Math.abs(deltaY) < 15 && now - lastTapTime < 300) {
+              const currentZoom = (rendition as any)._zoomLevel || 1;
+              const newZoom = currentZoom >= 1.5 ? 1 : 1.8;
+              (rendition as any)._zoomLevel = newZoom;
+              try { (rendition as any).zoom(newZoom); } catch {}
+              lastTapTime = 0;
+              return;
+            }
+            lastTapTime = now;
+
             if (Math.abs(deltaX) > 45 && Math.abs(deltaY) < 35) {
               if (deltaX < 0) {
                 sounds.playPageFlip();
@@ -385,7 +428,6 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
               return;
             }
 
-            // Center Tap zone for toggling HUD
             const docWidth = contents.window.innerWidth;
             const tapX = touchEndX;
             const leftZone = docWidth * 0.25;
@@ -398,10 +440,19 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
               sounds.playPageFlip();
               rendition.next();
             } else {
-              // Center tap: toggle HUD
               setIsHudVisible((prev) => !prev);
             }
           });
+
+          contents.document.addEventListener('wheel', (e: WheelEvent) => {
+            if (!e.ctrlKey && !e.metaKey) return;
+            e.preventDefault();
+            const delta = -e.deltaY * 0.005;
+            const currentZoom = (rendition as any)._zoomLevel || 1;
+            const newZoom = Math.max(0.5, Math.min(3, currentZoom * (1 + delta)));
+            (rendition as any)._zoomLevel = newZoom;
+            try { (rendition as any).zoom(newZoom); } catch {}
+          }, { passive: false });
 
           // Keyboard listeners inside iframe
           contents.document.addEventListener('keyup', (e: KeyboardEvent) => {
@@ -850,6 +901,34 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
               className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer md:hidden"
             >
               <ChevronRight className="w-5 h-5" />
+            </button>
+
+            <div className="w-px h-5 bg-black/10 dark:bg-white/20 mx-0.5 hidden sm:block" />
+
+            <button
+              onClick={() => {
+                const current = (renditionRef.current as any)?._zoomLevel || 1;
+                const next = Math.max(0.5, current - 0.2);
+                (renditionRef.current as any)._zoomLevel = next;
+                try { (renditionRef.current as any)?.zoom(next); } catch {}
+              }}
+              className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer hidden sm:block"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-5 h-5" />
+            </button>
+
+            <button
+              onClick={() => {
+                const current = (renditionRef.current as any)?._zoomLevel || 1;
+                const next = Math.min(3, current + 0.2);
+                (renditionRef.current as any)._zoomLevel = next;
+                try { (renditionRef.current as any)?.zoom(next); } catch {}
+              }}
+              className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition cursor-pointer hidden sm:block"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-5 h-5" />
             </button>
           </div>
 

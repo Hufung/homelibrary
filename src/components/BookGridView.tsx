@@ -44,7 +44,7 @@ export const BookGridView: React.FC<BookGridViewProps> = ({
   }
 
   return (
-    <div id="book-grid-layout" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 pt-4 pb-12">
+    <div id="book-grid-layout" className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 md:gap-6 lg:gap-7 pt-4 pb-12">
       {books.map((book) => {
         const isOpen = openBookId === book.id;
         const progressPercent = book.pageCount > 0
