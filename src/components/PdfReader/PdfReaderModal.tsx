@@ -298,9 +298,13 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
         pinchDist = getDist(e.touches[0], e.touches[1]);
         pinchScale = scaleRef.current;
       } else if (e.touches.length === 1) {
+        const sel = window.getSelection();
+        if (sel && !sel.isCollapsed && sel.toString().trim().length > 0) {
+          lastTap = 0;
+          return;
+        }
         const now = Date.now();
         if (now - lastTap < 300) {
-          e.preventDefault();
           const newScale = scaleRef.current >= 1.5 ? 1 : 2;
           setScale(Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale)));
           lastTap = 0;
@@ -354,8 +358,6 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
         lastSelectionText = '';
         return;
       }
-      if (text === lastSelectionText) return;
-      lastSelectionText = text;
       const range = sel.getRangeAt(0);
       if (!range || !el.contains(range.commonAncestorContainer)) {
         setPdfHighlightMenu(null);
@@ -373,11 +375,17 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
         text,
         pageNumber,
       });
+      lastSelectionText = text;
     };
 
     const handleSelectionChange = () => {
       if (selectionTimer) clearTimeout(selectionTimer);
-      selectionTimer = setTimeout(checkSelection, 350);
+      selectionTimer = setTimeout(checkSelection, 300);
+    };
+
+    const handleTouchEnd = () => {
+      if (selectionTimer) clearTimeout(selectionTimer);
+      selectionTimer = setTimeout(checkSelection, 50);
     };
 
     const handlePointerDown = (e: PointerEvent) => {
@@ -392,10 +400,12 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
     };
 
     document.addEventListener('selectionchange', handleSelectionChange);
+    el.addEventListener('touchend', handleTouchEnd, { passive: true });
     el.addEventListener('pointerdown', handlePointerDown);
     return () => {
       if (selectionTimer) clearTimeout(selectionTimer);
       document.removeEventListener('selectionchange', handleSelectionChange);
+      el.removeEventListener('touchend', handleTouchEnd);
       el.removeEventListener('pointerdown', handlePointerDown);
     };
   }, [pageNumber]);

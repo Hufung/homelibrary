@@ -128,8 +128,10 @@ export const PageFlip: React.FC<PageFlipProps> = ({
       triggeredRef.current = false;
       directionRef.current = null;
       lockedRef.current = false;
-      phaseRef.current = 'pending';
-      forceRender();
+      if (e.pointerType === 'touch') {
+        phaseRef.current = 'pending';
+        forceRender();
+      }
     },
     [forceRender]
   );
@@ -144,7 +146,7 @@ export const PageFlip: React.FC<PageFlipProps> = ({
       const dx = e.clientX - startXRef.current;
       const dy = e.clientY - startYRef.current;
 
-      if (phase === 'pending') {
+      if (phase === 'pending' && e.pointerType === 'touch') {
         if (Math.abs(dx) < SWIPE_LOCK_PX && Math.abs(dy) < SWIPE_LOCK_PX) return;
 
         if (Math.abs(dx) < Math.abs(dy) * 1.1) {

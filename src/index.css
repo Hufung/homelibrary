@@ -142,12 +142,28 @@
 
 .react-pdf__Page__textContent,
 .react-pdf__Page__textContent span,
+.textLayer,
 .textLayer span {
   user-select: text !important;
   -webkit-user-select: text !important;
-  touch-action: manipulation;
+  -webkit-touch-callout: default !important;
+}
+
+.textLayer {
+  touch-action: auto;
 }
 
 .react-pdf__Page {
   touch-action: manipulation;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .textLayer {
+    touch-action: auto;
+  }
+
+  .react-pdf__Page__textContent span,
+  .textLayer span {
+    cursor: text;
+  }
 }
