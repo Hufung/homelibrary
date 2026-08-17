@@ -105,7 +105,15 @@ export const DictionaryPanel: React.FC<DictionaryPanelProps> = ({
     if (isOpen) {
       if (initialWord) {
         setQuery(initialWord);
-        performLookup(initialWord);
+        lookupWord(initialWord).then(({ dict, translation: trans }) => {
+          setDictResult(dict);
+          setTranslation(trans);
+          if (!dict && !trans) {
+            setError(`No results found for "${initialWord}". Try another word.`);
+          }
+          setLoading(false);
+        });
+        setLoading(true);
       }
       setTimeout(() => inputRef.current?.focus(), 100);
     }
@@ -171,11 +179,14 @@ export const DictionaryPanel: React.FC<DictionaryPanelProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="w-full border-b border-[#D9D1C2] bg-[#F5F2ED] shadow-sm z-[60]">
+    <div className="absolute top-0 left-0 right-0 z-[70] border-b border-[#D9D1C2] bg-[#F5F2ED] shadow-md">
       <div className="flex items-center justify-between px-3 md:px-6 py-2 border-b border-[#EAE4D9]">
         <div className="flex items-center gap-2">
           <BookOpen className="w-4 h-4 text-[#5A5A40]" />
           <h3 className="font-serif font-bold text-sm text-[#2C2C2C]">Dictionary</h3>
+          {sourceBookTitle && (
+            <span className="text-[10px] text-[#A69F92] hidden sm:inline">from: {sourceBookTitle}</span>
+          )}
         </div>
         <button
           onClick={onClose}
@@ -234,7 +245,7 @@ export const DictionaryPanel: React.FC<DictionaryPanelProps> = ({
       </form>
 
       <div className="px-3 md:px-6 pb-3 max-h-[280px] overflow-y-auto space-y-3">
-        {query && !loading && !dictResult && !translation && (
+        {query && !loading && !dictResult && !translation && !error && (
           <button
             type="button"
             onClick={() => speak(query)}

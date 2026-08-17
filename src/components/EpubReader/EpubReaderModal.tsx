@@ -782,24 +782,24 @@ export const EpubReaderModal: React.FC<EpubReaderModalProps> = ({
         </div>
       </div>
 
-      {/* Dictionary Panel (top dropdown) */}
-      <DictionaryPanel
-        isOpen={isDictionaryOpen}
-        onClose={() => {
-          setIsDictionaryOpen(false);
-          setDictWord('');
-        }}
-        initialWord={dictWord}
-        sourceBookTitle={book.title}
-        onAddToVocab={(word, translation, phonetic, partOfSpeech) => {
-          const next = vocabStorage.add(word, translation, book.title, phonetic, partOfSpeech);
-          setVocabWords(next);
-        }}
-        vocabWords={new Set(vocabWords.map((v) => v.word.toLowerCase()))}
-      />
-
       {/* 2. MAIN EPUB READING STAGE */}
       <div className="flex-1 relative w-full h-full flex items-center justify-center overflow-hidden">
+        {/* Dictionary Panel (absolute top overlay) */}
+        <DictionaryPanel
+          isOpen={isDictionaryOpen}
+          onClose={() => {
+            setIsDictionaryOpen(false);
+            setDictWord('');
+          }}
+          initialWord={dictWord}
+          sourceBookTitle={book.title}
+          onAddToVocab={(word, translation, phonetic, partOfSpeech) => {
+            const next = vocabStorage.add(word, translation, book.title, phonetic, partOfSpeech);
+            setVocabWords(next);
+          }}
+          vocabWords={new Set(vocabWords.map((v) => v.word.toLowerCase()))}
+        />
+
         {/* Loading Overlay */}
         {isLoading && (
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-3 bg-inherit">

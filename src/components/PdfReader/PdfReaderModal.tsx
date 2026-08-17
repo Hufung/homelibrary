@@ -519,24 +519,24 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
         </div>
       </div>
 
-      {/* Dictionary Panel (top dropdown) */}
-      <DictionaryPanel
-        isOpen={isDictionaryOpen}
-        onClose={() => {
-          setIsDictionaryOpen(false);
-          setDictWord('');
-        }}
-        initialWord={dictWord}
-        sourceBookTitle={book.title}
-        onAddToVocab={(word, translation, phonetic, partOfSpeech) => {
-          const next = vocabStorage.add(word, translation, book.title, phonetic, partOfSpeech);
-          setVocabWords(next);
-        }}
-        vocabWords={new Set(vocabWords.map((v) => v.word.toLowerCase()))}
-      />
-
       {/* Body */}
       <div ref={viewerRef} className="flex-1 overflow-auto flex flex-col items-center p-4 sm:p-6 bg-[#ECE7DE] relative">
+        {/* Dictionary Panel (absolute top overlay) */}
+        <DictionaryPanel
+          isOpen={isDictionaryOpen}
+          onClose={() => {
+            setIsDictionaryOpen(false);
+            setDictWord('');
+          }}
+          initialWord={dictWord}
+          sourceBookTitle={book.title}
+          onAddToVocab={(word, translation, phonetic, partOfSpeech) => {
+            const next = vocabStorage.add(word, translation, book.title, phonetic, partOfSpeech);
+            setVocabWords(next);
+          }}
+          vocabWords={new Set(vocabWords.map((v) => v.word.toLowerCase()))}
+        />
+
         {error && (
           <div className="flex flex-col items-center justify-center h-full text-center gap-3 p-8">
             <AlertTriangle className="w-10 h-10 text-rose-500" />
