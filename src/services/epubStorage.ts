@@ -1,12 +1,13 @@
-import { EpubHighlight, EpubBookmark } from '../types';
+import { EpubHighlight, EpubBookmark, PdfHighlight } from '../types';
 
 const DB_NAME = 'BibliothecaEpubDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORES = {
   FILES: 'epub_files',
   PDF_FILES: 'pdf_files',
   HIGHLIGHTS: 'epub_highlights',
+  PDF_HIGHLIGHTS: 'pdf_highlights',
   BOOKMARKS: 'epub_bookmarks',
   LOCATIONS: 'epub_locations',
 } as const;
@@ -42,6 +43,12 @@ class EpubStorageService {
         if (!db.objectStoreNames.contains(STORES.HIGHLIGHTS)) {
           const hlStore = db.createObjectStore(STORES.HIGHLIGHTS, { keyPath: 'id' });
           hlStore.createIndex('bookId', 'bookId', { unique: false });
+        }
+
+        // Store for PDF highlights
+        if (!db.objectStoreNames.contains(STORES.PDF_HIGHLIGHTS)) {
+          const phlStore = db.createObjectStore(STORES.PDF_HIGHLIGHTS, { keyPath: 'id' });
+          phlStore.createIndex('bookId', 'bookId', { unique: false });
         }
 
         // Store for bookmarks
@@ -356,6 +363,55 @@ class EpubStorageService {
           resolve(null);
         }
       };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  // --- PDF Highlights ---
+  async savePdfHighlight(bookId: string, highlight: PdfHighlight): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORES.PDF_HIGHLIGHTS], 'readwrite');
+      const store = transaction.objectStore(STORES.PDF_HIGHLIGHTS);
+      const record = { ...highlight, bookId };
+      const req = store.put(record);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async getPdfHighlights(bookId: string): Promise<PdfHighlight[]> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORES.PDF_HIGHLIGHTS], 'readonly');
+      const store = transaction.objectStore(STORES.PDF_HIGHLIGHTS);
+      const index = store.index('bookId');
+      const req = index.getAll(bookId);
+
+      req.onsuccess = () => {
+        const results = req.result || [];
+        resolve(
+          results.map(({ id, pageNumber, text, color, note, createdAt }) => ({
+            id,
+            pageNumber,
+            text,
+            color,
+            note,
+            createdAt,
+          }))
+        );
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async deletePdfHighlight(highlightId: string): Promise<void> {
+    const db = await this.getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([STORES.PDF_HIGHLIGHTS], 'readwrite');
+      const store = transaction.objectStore(STORES.PDF_HIGHLIGHTS);
+      const req = store.delete(highlightId);
+      req.onsuccess = () => resolve();
       req.onerror = () => reject(req.error);
     });
   }

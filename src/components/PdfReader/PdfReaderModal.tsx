@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
-import { Book, EpubBookmark } from '../../types';
+import { Book, EpubBookmark, PdfHighlight, HighlightColor } from '../../types';
 import { epubStorage } from '../../services/epubStorage';
 import { sounds } from '../../services/soundEffects';
 import { DictionaryPanel } from '../Dictionary/DictionaryPanel';
@@ -36,6 +36,14 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 
+const HIGHLIGHT_COLORS: { color: HighlightColor; label: string; bg: string }[] = [
+  { color: 'yellow', label: 'Yellow', bg: 'rgba(255, 235, 59, 0.4)' },
+  { color: 'green', label: 'Green', bg: 'rgba(76, 175, 80, 0.4)' },
+  { color: 'blue', label: 'Blue', bg: 'rgba(33, 150, 243, 0.4)' },
+  { color: 'pink', label: 'Pink', bg: 'rgba(244, 67, 54, 0.4)' },
+  { color: 'purple', label: 'Purple', bg: 'rgba(171, 71, 188, 0.4)' },
+];
+
 interface PdfReaderModalProps {
   book: Book;
   onClose: () => void;
@@ -63,13 +71,14 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState<boolean>(false);
+  const [pdfHighlights, setPdfHighlights] = useState<PdfHighlight[]>([]);
+  const [pdfHighlightMenu, setPdfHighlightMenu] = useState<{
+    x: number;
+    y: number;
+    text: string;
+    pageNumber: number;
+  } | null>(null);
 
-  // Wrap the stored ArrayBuffer in a Blob URL so multiple <Document> instances
-  // can render the same PDF concurrently. Passing a raw ArrayBuffer makes
-  // pdf.js detach the buffer as soon as it transfers it to the worker, which
-  // crashes every subsequent <Document> ("Cannot perform Construct on a
-  // detached ArrayBuffer"). A Blob URL is a stable, copy-free reference that
-  // pdf.js can fetch without touching the underlying buffer.
   useEffect(() => {
     if (!pdfData) {
       setPdfUrl(null);
@@ -93,6 +102,15 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
       try {
         const stored = await epubStorage.getBookmarks(book.id);
         setBookmarks(stored);
+      } catch {}
+    })();
+  }, [book.id]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const stored = await epubStorage.getPdfHighlights(book.id);
+        setPdfHighlights(stored);
       } catch {}
     })();
   }, [book.id]);
@@ -176,7 +194,6 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // --- BOOKMARKS ---
   const isCurrentPageBookmarked = bookmarks.some((b) => b.cfi === `page:${pageNumber}`);
 
   const handleToggleBookmark = async () => {
@@ -218,7 +235,6 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
     } catch {}
   };
 
-  // --- DICTIONARY: pick up text selection ---
   const openDictionary = () => {
     let word: string | undefined;
     try {
@@ -230,7 +246,26 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
     setIsDictionaryOpen(true);
   };
 
-  // Ctrl+scroll wheel zoom on the viewer area
+  const handlePdfSelectHighlight = async (color: HighlightColor) => {
+    if (!pdfHighlightMenu) return;
+    const newHighlight: PdfHighlight = {
+      id: `phl-${Date.now()}`,
+      pageNumber: pdfHighlightMenu.pageNumber,
+      text: pdfHighlightMenu.text,
+      color,
+      createdAt: new Date().toISOString(),
+    };
+    await epubStorage.savePdfHighlight(book.id, newHighlight);
+    setPdfHighlights((prev) => [...prev, newHighlight]);
+    setPdfHighlightMenu(null);
+    window.getSelection()?.removeAllRanges();
+  };
+
+  const handleDeletePdfHighlight = async (id: string) => {
+    await epubStorage.deletePdfHighlight(id);
+    setPdfHighlights((prev) => prev.filter((h) => h.id !== id));
+  };
+
   useEffect(() => {
     const el = viewerRef.current;
     if (!el) return;
@@ -244,7 +279,6 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  // Touch pinch-to-zoom and double-tap zoom on the viewer area
   useEffect(() => {
     const el = viewerRef.current;
     if (!el) return;
@@ -299,6 +333,80 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
       el.removeEventListener('touchend', onTouchEnd);
     };
   }, []);
+
+  useEffect(() => {
+    const el = viewerRef.current;
+    if (!el) return;
+
+    const handleMouseUp = () => {
+      setTimeout(() => {
+        const sel = window.getSelection();
+        const text = sel?.toString().trim() || '';
+        if (text && text.length >= 2 && text.length <= 500) {
+          const range = sel?.getRangeAt(0);
+          if (range) {
+            const rect = range.getBoundingClientRect();
+            const containerRect = el.getBoundingClientRect();
+            setPdfHighlightMenu({
+              x: rect.left + rect.width / 2 - containerRect.left + el.scrollLeft,
+              y: rect.top - containerRect.top + el.scrollTop - 8,
+              text,
+              pageNumber,
+            });
+          }
+        } else {
+          setPdfHighlightMenu(null);
+        }
+      }, 10);
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if ((e.target as HTMLElement)?.closest('[data-highlight-menu]')) return;
+      setPdfHighlightMenu(null);
+    };
+
+    el.addEventListener('mouseup', handleMouseUp);
+    el.addEventListener('mousedown', handleMouseDown);
+    return () => {
+      el.removeEventListener('mouseup', handleMouseUp);
+      el.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [pageNumber]);
+
+  useEffect(() => {
+    const pageHighlights = pdfHighlights.filter((h) => h.pageNumber === pageNumber);
+    if (pageHighlights.length === 0) return;
+
+    const colorMap: Record<string, string> = {
+      yellow: 'rgba(255, 235, 59, 0.4)',
+      green: 'rgba(76, 175, 80, 0.4)',
+      blue: 'rgba(33, 150, 243, 0.4)',
+      pink: 'rgba(244, 67, 54, 0.4)',
+      purple: 'rgba(171, 71, 188, 0.4)',
+    };
+
+    const timer = setTimeout(() => {
+      const textLayers = viewerRef.current?.querySelectorAll(
+        '.react-pdf__Page__textContent, [data-page-number] .textLayer, .textLayer'
+      );
+      if (!textLayers) return;
+
+      textLayers.forEach((layer) => {
+        const spans = layer.querySelectorAll('span');
+        spans.forEach((span) => {
+          const spanText = span.textContent || '';
+          pageHighlights.forEach((hl) => {
+            if (spanText.includes(hl.text.substring(0, 20)) || hl.text.includes(spanText)) {
+              span.style.backgroundColor = colorMap[hl.color] || 'rgba(255, 235, 59, 0.4)';
+              span.style.borderRadius = '2px';
+            }
+          });
+        });
+      });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [pdfHighlights, pageNumber]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowRight' || e.key === 'PageDown') goToPage(pageNumber + 1);
@@ -411,6 +519,22 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
         </div>
       </div>
 
+      {/* Dictionary Panel (top dropdown) */}
+      <DictionaryPanel
+        isOpen={isDictionaryOpen}
+        onClose={() => {
+          setIsDictionaryOpen(false);
+          setDictWord('');
+        }}
+        initialWord={dictWord}
+        sourceBookTitle={book.title}
+        onAddToVocab={(word, translation, phonetic, partOfSpeech) => {
+          const next = vocabStorage.add(word, translation, book.title, phonetic, partOfSpeech);
+          setVocabWords(next);
+        }}
+        vocabWords={new Set(vocabWords.map((v) => v.word.toLowerCase()))}
+      />
+
       {/* Body */}
       <div ref={viewerRef} className="flex-1 overflow-auto flex flex-col items-center p-4 sm:p-6 bg-[#ECE7DE] relative">
         {error && (
@@ -513,6 +637,38 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
             />
           </div>
         )}
+
+        {pdfHighlightMenu && (
+          <div
+            data-highlight-menu
+            className="absolute z-50 bg-white rounded-xl shadow-lg border border-[#D9D1C2] p-2 flex gap-1"
+            style={{
+              left: Math.max(0, pdfHighlightMenu.x - 80),
+              top: Math.max(0, pdfHighlightMenu.y - 44),
+            }}
+          >
+            {HIGHLIGHT_COLORS.map(({ color, label, bg }) => (
+              <button
+                key={color}
+                onClick={() => handlePdfSelectHighlight(color)}
+                className="w-7 h-7 rounded-full transition hover:scale-110 cursor-pointer border border-black/10"
+                style={{ backgroundColor: bg }}
+                title={label}
+              />
+            ))}
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(pdfHighlightMenu.text);
+                setPdfHighlightMenu(null);
+                window.getSelection()?.removeAllRanges();
+              }}
+              className="px-2 py-1 text-xs text-[#5A5A40] hover:bg-[#EAE4D9] rounded-lg transition cursor-pointer"
+              title="Copy text"
+            >
+              Copy
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bottom Nav Bar */}
@@ -612,18 +768,6 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
           </div>
         </div>
       )}
-
-      {/* Dictionary Panel */}
-      <DictionaryPanel
-        isOpen={isDictionaryOpen}
-        onClose={() => setIsDictionaryOpen(false)}
-        initialWord={dictWord}
-        onAddToVocab={(word, translation, phonetic, partOfSpeech) => {
-          const next = vocabStorage.add(word, translation, book.title, phonetic, partOfSpeech);
-          setVocabWords(next);
-        }}
-        vocabWords={vocabStorage.getWords()}
-      />
 
       {/* Vocabulary Drawer */}
       <VocabDrawer

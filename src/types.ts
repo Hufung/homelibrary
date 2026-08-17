@@ -25,6 +25,15 @@ export interface EpubHighlight {
   createdAt: string;
 }
 
+export interface PdfHighlight {
+  id: string;
+  pageNumber: number;
+  text: string;
+  color: HighlightColor;
+  note?: string;
+  createdAt: string;
+}
+
 export interface EpubBookmark {
   id: string;
   cfi: string;
