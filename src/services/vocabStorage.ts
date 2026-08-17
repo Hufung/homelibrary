@@ -3,6 +3,8 @@ const VOCAB_KEY = 'bibliotheca_vocab_words';
 export interface VocabWord {
   word: string;
   translation: string;
+  phonetic?: string;
+  partOfSpeech?: string;
   addedAt: string;
   sourceBook?: string;
 }
@@ -15,12 +17,14 @@ const getAll = (): VocabWord[] => {
   return [];
 };
 
-const add = (word: string, translation: string, sourceBook?: string): VocabWord[] => {
+const add = (word: string, translation: string, sourceBook?: string, phonetic?: string, partOfSpeech?: string): VocabWord[] => {
   const words = getAll();
   if (words.some((w) => w.word.toLowerCase() === word.toLowerCase())) return words;
   const entry: VocabWord = {
     word,
     translation,
+    phonetic,
+    partOfSpeech,
     addedAt: new Date().toISOString(),
     sourceBook,
   };

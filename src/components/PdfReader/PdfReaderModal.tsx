@@ -618,8 +618,8 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
         isOpen={isDictionaryOpen}
         onClose={() => setIsDictionaryOpen(false)}
         initialWord={dictWord}
-        onAddToVocab={(word, translation) => {
-          const next = vocabStorage.add(word, translation, book.title);
+        onAddToVocab={(word, translation, phonetic, partOfSpeech) => {
+          const next = vocabStorage.add(word, translation, book.title, phonetic, partOfSpeech);
           setVocabWords(next);
         }}
         vocabWords={vocabStorage.getWords()}

@@ -121,10 +121,20 @@ export const VocabDrawer: React.FC<VocabDrawerProps> = ({
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-serif font-bold text-[#2C2C2C]">
                       {entry.word}
                     </span>
+                    {entry.phonetic && (
+                      <span className="text-xs text-[#8C867A] font-mono">
+                        {entry.phonetic}
+                      </span>
+                    )}
+                    {entry.partOfSpeech && (
+                      <span className="text-[10px] font-bold text-white bg-[#5A5A40] px-1.5 py-0.5 rounded-full italic">
+                        {entry.partOfSpeech}
+                      </span>
+                    )}
                     <button
                       onClick={() => speak(entry.word)}
                       className="p-1 rounded-full text-[#A69F92] hover:text-[#5A5A40] transition opacity-0 group-hover:opacity-100 cursor-pointer"

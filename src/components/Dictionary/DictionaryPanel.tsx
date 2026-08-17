@@ -1,99 +1,140 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, X, Search, Loader2, Volume2, Copy, Check, History, BookPlus } from 'lucide-react';
+import {
+  BookX,
+  Volume2,
+  Copy,
+  Check,
+  Search,
+  Plus,
+  X,
+  BookOpen,
+} from 'lucide-react';
 
 interface DictionaryPanelProps {
   isOpen: boolean;
   onClose: () => void;
   initialWord?: string;
-  onLookupRequest?: (word: string) => void;
-  onAddToVocab?: (word: string, translation: string) => void;
-  vocabWords?: Set<string>;
+  sourceBookTitle?: string;
+  onAddToVocab: (word: string, translation: string, phonetic?: string, partOfSpeech?: string) => void;
+  vocabWords: Set<string>;
+  onSelectWord?: (word: string) => void;
 }
 
-interface DictionaryResult {
+interface DictMeaning {
+  partOfSpeech: string;
+  definitions: { definition: string; example?: string }[];
+  synonyms: string[];
+}
+
+interface DictResult {
   word: string;
-  translation: string;
-  source: string;
+  phonetic: string;
+  audio: string;
+  meanings: DictMeaning[];
 }
 
-const HISTORY_KEY = 'bibliotheca_dictionary_history';
+const isEnglish = (text: string) => /^[a-zA-Z\s'-]+$/.test(text.trim());
 
-const getHistory = (): string[] => {
+const lookupWord = async (
+  word: string
+): Promise<{ dict: DictResult | null; translation: string }> => {
+  let dict: DictResult | null = null;
+  let translation = '';
+
+  if (isEnglish(word)) {
+    try {
+      const res = await fetch(
+        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const entry = data[0];
+        const phonetic =
+          entry.phonetic ||
+          entry.phonetics?.find((p: any) => p.text)?.text ||
+          '';
+        const audio =
+          entry.phonetics?.find((p: any) => p.audio)?.audio || '';
+        const meanings: DictMeaning[] = (entry.meanings || []).map((m: any) => ({
+          partOfSpeech: m.partOfSpeech,
+          definitions: (m.definitions || []).slice(0, 3).map((d: any) => ({
+            definition: d.definition,
+            example: d.example,
+          })),
+          synonyms: (m.synonyms || []).slice(0, 5),
+        }));
+        dict = { word: entry.word, phonetic, audio, meanings };
+      }
+    } catch {}
+  }
+
   try {
-    const stored = localStorage.getItem(HISTORY_KEY);
-    if (stored) return JSON.parse(stored);
+    const res = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encodeURIComponent(
+        word
+      )}&langpair=en|zh-TW`
+    );
+    const data = await res.json();
+    const t = data?.responseData?.translatedText;
+    if (t && t.toLowerCase() !== word.toLowerCase()) {
+      translation = t;
+    }
   } catch {}
-  return [];
+
+  return { dict, translation };
 };
 
 export const DictionaryPanel: React.FC<DictionaryPanelProps> = ({
   isOpen,
   onClose,
   initialWord,
-  onLookupRequest,
+  sourceBookTitle,
   onAddToVocab,
   vocabWords,
+  onSelectWord,
 }) => {
   const [query, setQuery] = useState('');
-  const [result, setResult] = useState<DictionaryResult | null>(null);
+  const [translation, setTranslation] = useState('');
+  const [dictResult, setDictResult] = useState<DictResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<string[]>(getHistory());
+  const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [added, setAdded] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const lookup = async (word: string) => {
-    const trimmed = word.trim();
-    if (!trimmed) return;
-    setQuery(trimmed);
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setAdded(false);
-    try {
-      const resp = await fetch(
-        `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=en|zh-TW`
-      );
-      const data = await resp.json();
-      const responseData = data?.responseData;
-      const translated = responseData?.translatedText;
-      if (!translated || data?.responseStatus !== 200) {
-        throw new Error('No translation available');
-      }
-      const clean = translated.replace(/^[^A-Za-z\u4e00-\u9fff]+/, '').trim();
-      if (!clean) throw new Error('No translation available');
-      setResult({
-        word: trimmed,
-        translation: clean,
-        source: data?.responseDetails || 'MyMemory',
-      });
-      const next = [trimmed, ...history.filter((h) => h.toLowerCase() !== trimmed.toLowerCase())].slice(0, 12);
-      setHistory(next);
-      try {
-        localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
-      } catch {}
-      onLookupRequest?.(trimmed);
-    } catch {
-      setError('Could not look up this word. Please check your spelling and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const autoRanRef = useRef(false);
   useEffect(() => {
-    if (isOpen && initialWord && !autoRanRef.current) {
-      autoRanRef.current = true;
-      lookup(initialWord);
+    if (isOpen) {
+      if (initialWord) {
+        setQuery(initialWord);
+        performLookup(initialWord);
+      }
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
-    if (!isOpen) autoRanRef.current = false;
   }, [isOpen, initialWord]);
 
-  if (!isOpen) return null;
+  const performLookup = async (word: string) => {
+    if (!word.trim()) return;
+    setLoading(true);
+    setError('');
+    setTranslation('');
+    setDictResult(null);
+    setCopied(false);
+    setAdded(false);
 
-  const speak = (word: string) => {
+    const { dict, translation: trans } = await lookupWord(word.trim());
+
+    setDictResult(dict);
+    setTranslation(trans);
+
+    if (!dict && !trans) {
+      setError(`No results found for "${word}". Try another word.`);
+    }
+    setLoading(false);
+  };
+
+  const speak = (text: string) => {
     try {
-      const utterance = new SpeechSynthesisUtterance(word);
+      const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'en-US';
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
@@ -101,179 +142,264 @@ export const DictionaryPanel: React.FC<DictionaryPanelProps> = ({
   };
 
   const handleCopy = () => {
-    if (!result) return;
-    try {
-      navigator.clipboard.writeText(`${result.word} → ${result.translation}`);
+    if (!query) return;
+    const parts = [query];
+    if (dictResult?.phonetic) parts.push(dictResult.phonetic);
+    dictResult?.meanings.forEach((m) => {
+      m.definitions.forEach((d) => parts.push(`(${m.partOfSpeech}) ${d.definition}`));
+    });
+    if (translation) parts.push(`→ ${translation}`);
+    navigator.clipboard.writeText(parts.join('\n')).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {}
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   const handleAddToVocab = () => {
-    if (!result || !onAddToVocab) return;
-    onAddToVocab(result.word, result.translation);
+    if (!query || added) return;
+    const firstPos = dictResult?.meanings?.[0]?.partOfSpeech;
+    onAddToVocab(query.trim(), translation, dictResult?.phonetic, firstPos);
     setAdded(true);
   };
 
-  const inVocab = result ? vocabWords?.has(result.word.toLowerCase()) : false;
+  const isSaved = vocabWords.has(query.toLowerCase());
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim()) performLookup(query.trim());
+  };
+
+  if (!isOpen) return null;
 
   return (
-    <aside
-      className="fixed top-0 right-0 z-[60] w-full max-w-sm bg-[#F9F7F2] h-full flex flex-col shadow-2xl animate-in slide-in-from-right duration-300 text-[#3D3A35] border-l border-[#D9D1C2]"
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-[#EAE4D9] bg-[#F5F2ED]">
-        <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-[#5A5A40]" />
-          <h3 className="font-serif font-bold text-sm text-[#2C2C2C]">Dictionary</h3>
-          <span className="text-[10px] bg-[#EAE4D9] text-[#8C867A] px-2 py-0.5 rounded-full">
-            EN → 繁體中文
-          </span>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-2 rounded-full text-[#8C867A] hover:text-[#2C2C2C] hover:bg-[#EAE4D9] transition cursor-pointer"
-          title="Close dictionary"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
-      {/* Search */}
-      <div className="p-3 border-b border-[#EAE4D9] bg-[#F5F2ED]/60">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            lookup(query);
-          }}
-          className="relative"
-        >
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8C867A]" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Enter an English word..."
-            className="w-full bg-[#FFFFFF] border border-[#D9D1C2] rounded-full pl-9 pr-16 py-2 text-sm text-[#2C2C2C] placeholder:text-[#A69F92] outline-none focus:border-[#5A5A40]"
-          />
-          <button
-            type="submit"
-            disabled={loading || !query.trim()}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1 rounded-full bg-[#5A5A40] text-white text-xs font-semibold disabled:opacity-40 hover:bg-[#4a4a33] transition cursor-pointer"
-          >
-            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Look up'}
-          </button>
-        </form>
-      </div>
-
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {error && (
-          <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-xs text-rose-700">
-            {error}
+    <div className="fixed top-0 right-0 h-full z-[60] pointer-events-none">
+      <aside
+        className="absolute top-0 right-0 w-full max-w-sm h-full flex flex-col pointer-events-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex-1 flex flex-col bg-[#F9F7F2] border-l border-[#D9D1C2] shadow-[-4px_0_24px_rgba(0,0,0,0.08)] h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-[#EAE4D9] bg-[#F5F2ED]">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-[#5A5A40]" />
+              <h3 className="font-serif font-bold text-sm text-[#2C2C2C]">Dictionary</h3>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full text-[#8C867A] hover:text-[#2C2C2C] hover:bg-[#EAE4D9] transition cursor-pointer"
+              title="Close dictionary"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-        )}
 
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-12 gap-3 text-[#5A5A40]">
-            <Loader2 className="w-7 h-7 animate-spin" />
-            <p className="text-xs font-medium">Looking up...</p>
-          </div>
-        )}
-
-        {!loading && !error && !result && history.length === 0 && (
-          <div className="text-center py-10 px-4 space-y-2 text-[#8C867A]">
-            <Search className="w-9 h-9 mx-auto text-[#D9D1C2]" />
-            <p className="text-sm font-medium text-[#2C2C2C]">Look up any word</p>
-            <p className="text-xs leading-relaxed">
-              Type an English word above or select text in the book to translate it into
-              traditional Chinese.
-            </p>
-          </div>
-        )}
-
-        {result && (
-          <div className="bg-[#FFFFFF] rounded-2xl border border-[#D9D1C2] shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-[#EAE4D9] flex items-start justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-lg font-serif font-bold text-[#2C2C2C]">
-                    {result.word}
-                  </span>
+          {/* Search */}
+          <form onSubmit={handleSubmit} className="px-4 py-3 border-b border-[#EAE4D9] bg-white/50">
+            <div className="flex items-center gap-2">
+              <div className="flex-1 relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#8C867A]" />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setAdded(false);
+                  }}
+                  placeholder="Type a word..."
+                  className="w-full bg-white border border-[#D9D1C2] rounded-full pl-9 pr-10 py-2 text-sm text-[#2C2C2C] placeholder:text-[#A69F92] outline-none focus:border-[#5A5A40]"
+                />
+                {query && (
                   <button
-                    onClick={() => speak(result.word)}
-                    className="p-1.5 rounded-full text-[#8C867A] hover:text-[#2C2C2C] hover-bg-[#EAE4D9] transition cursor-pointer"
-                    title="Pronounce"
+                    type="button"
+                    onClick={() => {
+                      setQuery('');
+                      setDictResult(null);
+                      setTranslation('');
+                      setError('');
+                      inputRef.current?.focus();
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A69F92] hover:text-[#5A5A40] cursor-pointer"
                   >
-                    <Volume2 className="w-4 h-4" />
+                    <X className="w-3.5 h-3.5" />
                   </button>
-                </div>
-                <p className="text-[10px] text-[#A69F92] uppercase tracking-wide mt-0.5">
-                  English
-                </p>
+                )}
               </div>
               <button
-                onClick={handleCopy}
-                className="p-1.5 rounded-lg text-[#8C867A] hover:text-[#2C2C2C] hover-bg-[#EAE4D9] transition cursor-pointer"
-                title="Copy"
+                type="submit"
+                disabled={loading || !query.trim()}
+                className="px-3 py-2 rounded-full bg-[#5A5A40] text-white text-sm font-medium hover:bg-[#4A4A35] transition disabled:opacity-40 cursor-pointer"
               >
-                {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                {loading ? (
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+                  </span>
+                ) : (
+                  'Look up'
+                )}
               </button>
             </div>
-            <div className="px-4 py-4">
-              <p className="text-2xl font-serif font-bold text-[#5A5A40] leading-snug">
-                {result.translation}
-              </p>
-              <p className="text-[11px] text-[#8C867A] mt-2">
-                Traditional Chinese definition
-              </p>
-            </div>
+            {query && (
+              <button
+                type="button"
+                onClick={() => speak(query)}
+                className="mt-2 flex items-center gap-1.5 text-[10px] text-[#5A5A40] hover:underline cursor-pointer"
+              >
+                <Volume2 className="w-3 h-3" />
+                Pronounce
+              </button>
+            )}
+          </form>
 
-            {/* Add to Vocab button */}
-            {onAddToVocab && (
-              <div className="px-4 pb-4">
-                <button
-                  onClick={handleAddToVocab}
-                  disabled={inVocab || added}
-                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border text-sm font-medium transition cursor-pointer disabled:opacity-50 disabled:cursor-default bg-[#F5F2ED] border-[#D9D1C2] text-[#5A5A40] hover:bg-[#EAE4D9]"
-                >
-                  {inVocab || added ? (
-                    <>
-                      <Check className="w-4 h-4 text-emerald-600" />
-                      Saved to Vocab
-                    </>
-                  ) : (
-                    <>
-                      <BookPlus className="w-4 h-4" />
-                      Add to Vocabulary
-                    </>
+          {/* Results */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            {error && (
+              <p className="text-sm text-[#8C867A] italic">{error}</p>
+            )}
+
+            {/* Loading skeleton */}
+            {loading && (
+              <div className="space-y-4 animate-pulse">
+                <div className="h-6 bg-[#EAE4D9] rounded w-1/3" />
+                <div className="space-y-2">
+                  <div className="h-4 bg-[#EAE4D9] rounded w-full" />
+                  <div className="h-4 bg-[#EAE4D9] rounded w-5/6" />
+                </div>
+                <div className="h-px bg-[#EAE4D9]" />
+                <div className="space-y-2">
+                  <div className="h-4 bg-[#EAE4D9] rounded w-full" />
+                  <div className="h-4 bg-[#EAE4D9] rounded w-3/4" />
+                </div>
+              </div>
+            )}
+
+            {/* Dictionary result */}
+            {!loading && dictResult && (
+              <>
+                {/* Word header */}
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="font-serif font-bold text-2xl text-[#2C2C2C]">
+                      {dictResult.word}
+                    </h2>
+                    {dictResult.phonetic && (
+                      <span className="text-sm text-[#8C867A] font-mono">
+                        {dictResult.phonetic}
+                      </span>
+                    )}
+                  </div>
+                  {sourceBookTitle && (
+                    <p className="text-[10px] text-[#A69F92] mt-1">
+                      from: {sourceBookTitle}
+                    </p>
                   )}
-                </button>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopy}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#D9D1C2] text-[#5A5A40] text-xs hover:bg-[#EAE4D9] transition cursor-pointer"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span className="text-emerald-600">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        Copy
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleAddToVocab}
+                    disabled={isSaved || added}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition cursor-pointer ${
+                      isSaved || added
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-[#5A5A40] text-white hover:bg-[#4A4A35]'
+                    }`}
+                  >
+                    {isSaved ? (
+                      'In Vocab'
+                    ) : added ? (
+                      <>
+                        <Check className="w-3 h-3" />
+                        Added
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3 h-3" />
+                        Add to Vocab
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Meanings grouped by part of speech */}
+                {dictResult.meanings.map((meaning, mi) => (
+                  <div key={mi} className="border-t border-[#EAE4D9] pt-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-bold text-white bg-[#5A5A40] px-2 py-0.5 rounded-full italic">
+                        {meaning.partOfSpeech}
+                      </span>
+                      {meaning.synonyms.length > 0 && (
+                        <span className="text-[10px] text-[#8C867A]">
+                          synonyms: {meaning.synonyms.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                    <ol className="space-y-2.5 list-none">
+                      {meaning.definitions.map((def, di) => (
+                        <li key={di} className="flex gap-2">
+                          <span className="text-[10px] font-bold text-[#5A5A40] bg-[#EAE4D9] rounded-full w-4 h-4 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            {di + 1}
+                          </span>
+                          <div className="flex-1">
+                            <p className="text-[13px] leading-relaxed text-[#3D3A35]">
+                              {def.definition}
+                            </p>
+                            {def.example && (
+                              <p className="text-xs text-[#8C867A] italic mt-1 pl-2 border-l-2 border-[#D9D1C2]">
+                                "{def.example}"
+                              </p>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* Translation (Chinese) */}
+            {!loading && translation && (
+              <div className="border-t border-[#EAE4D9] pt-3">
+                <span className="text-[10px] font-bold text-white bg-[#5A5A40] px-2 py-0.5 rounded-full">
+                  zh-TW
+                </span>
+                <p className="text-lg font-serif font-bold text-[#5A5A40] mt-2">
+                  {translation}
+                </p>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!loading && !error && !dictResult && !translation && (
+              <div className="text-center py-12 text-[#A69F92] space-y-3">
+                <BookOpen className="w-10 h-10 mx-auto opacity-30" />
+                <p className="text-sm">
+                  Type a word to look up its meaning, part of speech, and
+                  examples.
+                </p>
               </div>
             )}
           </div>
-        )}
-
-        {history.length > 0 && (
-          <div>
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#8C867A] mb-2">
-              <History className="w-3 h-3" />
-              Recent lookups
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {history.map((word) => (
-                <button
-                  key={word}
-                  onClick={() => lookup(word)}
-                  className="px-2.5 py-1 rounded-full bg-[#EAE4D9] hover:bg-[#D9D1C2] text-[11px] font-medium text-[#5A5A40] transition cursor-pointer"
-                >
-                  {word}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </aside>
+        </div>
+      </aside>
+    </div>
   );
 };
