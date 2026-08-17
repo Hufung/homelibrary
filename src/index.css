@@ -139,3 +139,15 @@
     min-width: 44px;
   }
 }
+
+.react-pdf__Page__textContent,
+.react-pdf__Page__textContent span,
+.textLayer span {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  touch-action: manipulation;
+}
+
+.react-pdf__Page {
+  touch-action: manipulation;
+}

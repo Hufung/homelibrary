@@ -338,38 +338,45 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
     const el = viewerRef.current;
     if (!el) return;
 
-    const handleMouseUp = () => {
-      setTimeout(() => {
-        const sel = window.getSelection();
-        const text = sel?.toString().trim() || '';
-        if (text && text.length >= 2 && text.length <= 500) {
-          const range = sel?.getRangeAt(0);
-          if (range) {
-            const rect = range.getBoundingClientRect();
-            const containerRect = el.getBoundingClientRect();
-            setPdfHighlightMenu({
-              x: rect.left + rect.width / 2 - containerRect.left + el.scrollLeft,
-              y: rect.top - containerRect.top + el.scrollTop - 8,
-              text,
-              pageNumber,
-            });
-          }
-        } else {
-          setPdfHighlightMenu(null);
-        }
-      }, 10);
-    };
+    let selectionTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const handleMouseDown = (e: MouseEvent) => {
-      if ((e.target as HTMLElement)?.closest('[data-highlight-menu]')) return;
+    const checkSelection = () => {
+      const sel = window.getSelection();
+      const text = sel?.toString().trim() || '';
+      if (text && text.length >= 2 && text.length <= 500) {
+        const range = sel?.getRangeAt(0);
+        if (range && el.contains(range.commonAncestorContainer)) {
+          const rect = range.getBoundingClientRect();
+          const containerRect = el.getBoundingClientRect();
+          setPdfHighlightMenu({
+            x: rect.left + rect.width / 2 - containerRect.left + el.scrollLeft,
+            y: rect.top - containerRect.top + el.scrollTop - 8,
+            text,
+            pageNumber,
+          });
+          return;
+        }
+      }
       setPdfHighlightMenu(null);
     };
 
-    el.addEventListener('mouseup', handleMouseUp);
-    el.addEventListener('mousedown', handleMouseDown);
+    const handleSelectionChange = () => {
+      if (selectionTimer) clearTimeout(selectionTimer);
+      selectionTimer = setTimeout(checkSelection, 150);
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      if ((e.target as HTMLElement)?.closest('[data-highlight-menu]')) return;
+      if ((e.target as HTMLElement)?.closest('[data-highlight-color]')) return;
+      setPdfHighlightMenu(null);
+    };
+
+    document.addEventListener('selectionchange', handleSelectionChange);
+    el.addEventListener('pointerdown', handlePointerDown);
     return () => {
-      el.removeEventListener('mouseup', handleMouseUp);
-      el.removeEventListener('mousedown', handleMouseDown);
+      if (selectionTimer) clearTimeout(selectionTimer);
+      document.removeEventListener('selectionchange', handleSelectionChange);
+      el.removeEventListener('pointerdown', handlePointerDown);
     };
   }, [pageNumber]);
 
@@ -563,6 +570,7 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
             style={{
               width: basePageSize.width * scale,
               height: basePageSize.height * scale,
+              touchAction: 'manipulation',
             }}
           >
             <PageFlip
@@ -641,17 +649,18 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
         {pdfHighlightMenu && (
           <div
             data-highlight-menu
-            className="absolute z-50 bg-white rounded-xl shadow-lg border border-[#D9D1C2] p-2 flex gap-1"
+            className="absolute z-50 bg-white rounded-xl shadow-lg border border-[#D9D1C2] p-2 flex gap-1.5"
             style={{
-              left: Math.max(0, pdfHighlightMenu.x - 80),
-              top: Math.max(0, pdfHighlightMenu.y - 44),
+              left: Math.max(8, Math.min(pdfHighlightMenu.x - 100, (viewerRef.current?.clientWidth || 400) - 220)),
+              top: Math.max(8, pdfHighlightMenu.y - 52),
             }}
           >
             {HIGHLIGHT_COLORS.map(({ color, label, bg }) => (
               <button
                 key={color}
+                data-highlight-color
                 onClick={() => handlePdfSelectHighlight(color)}
-                className="w-7 h-7 rounded-full transition hover:scale-110 cursor-pointer border border-black/10"
+                className="w-9 h-9 md:w-7 md:h-7 rounded-full transition hover:scale-110 cursor-pointer border border-black/10"
                 style={{ backgroundColor: bg }}
                 title={label}
               />
