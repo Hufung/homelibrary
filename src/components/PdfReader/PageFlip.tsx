@@ -14,7 +14,7 @@ interface PageFlipProps {
 }
 
 type Direction = 'next' | 'prev';
-type Phase = 'idle' | 'dragging' | 'flipping' | 'returning';
+type Phase = 'idle' | 'pending' | 'dragging' | 'flipping' | 'returning';
 
 const COMMIT_THRESHOLD = 0.3;
 const VELOCITY_COMMIT = 0.4;
@@ -128,11 +128,10 @@ export const PageFlip: React.FC<PageFlipProps> = ({
       triggeredRef.current = false;
       directionRef.current = null;
       lockedRef.current = false;
-      try {
-        (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-      } catch {}
+      phaseRef.current = 'pending';
+      forceRender();
     },
-    []
+    [forceRender]
   );
 
   const handlePointerMove = useCallback(
@@ -140,16 +139,23 @@ export const PageFlip: React.FC<PageFlipProps> = ({
       if (pointerIdRef.current !== e.pointerId) return;
       const phase = phaseRef.current;
 
-      if (phase !== 'idle' && phase !== 'dragging') return;
+      if (phase !== 'pending' && phase !== 'dragging') return;
 
       const dx = e.clientX - startXRef.current;
       const dy = e.clientY - startYRef.current;
 
-      if (!lockedRef.current) {
+      if (phase === 'pending') {
         if (Math.abs(dx) < SWIPE_LOCK_PX && Math.abs(dy) < SWIPE_LOCK_PX) return;
-        if (Math.abs(dx) < Math.abs(dy) * 1.1) return;
 
-        lockedRef.current = true;
+        if (Math.abs(dx) < Math.abs(dy) * 1.1) {
+          resetGesture();
+          return;
+        }
+
+        try {
+          (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+        } catch {}
+
         const dir: Direction = dx < 0 ? 'next' : 'prev';
         directionRef.current = dir;
 
@@ -162,6 +168,7 @@ export const PageFlip: React.FC<PageFlipProps> = ({
           return;
         }
 
+        lockedRef.current = true;
         phaseRef.current = 'dragging';
       }
 
@@ -275,7 +282,11 @@ export const PageFlip: React.FC<PageFlipProps> = ({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
         className="absolute inset-0 z-20"
-        style={{ touchAction: 'pan-y', cursor }}
+        style={{
+          touchAction: 'pan-y',
+          cursor,
+          pointerEvents: isDragging || isFlipping || isReturning ? 'auto' : 'none',
+        }}
       />
       {showOverlay && frontPage && backPage && (
         <div
