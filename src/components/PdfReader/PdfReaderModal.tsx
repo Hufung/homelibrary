@@ -339,36 +339,56 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
     if (!el) return;
 
     let selectionTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastSelectionText = '';
 
     const checkSelection = () => {
       const sel = window.getSelection();
-      const text = sel?.toString().trim() || '';
-      if (text && text.length >= 2 && text.length <= 500) {
-        const range = sel?.getRangeAt(0);
-        if (range && el.contains(range.commonAncestorContainer)) {
-          const rect = range.getBoundingClientRect();
-          const containerRect = el.getBoundingClientRect();
-          setPdfHighlightMenu({
-            x: rect.left + rect.width / 2 - containerRect.left + el.scrollLeft,
-            y: rect.top - containerRect.top + el.scrollTop - 8,
-            text,
-            pageNumber,
-          });
-          return;
-        }
+      if (!sel || sel.isCollapsed) {
+        setPdfHighlightMenu(null);
+        lastSelectionText = '';
+        return;
       }
-      setPdfHighlightMenu(null);
+      const text = sel.toString().trim();
+      if (!text || text.length < 2 || text.length > 500) {
+        setPdfHighlightMenu(null);
+        lastSelectionText = '';
+        return;
+      }
+      if (text === lastSelectionText) return;
+      lastSelectionText = text;
+      const range = sel.getRangeAt(0);
+      if (!range || !el.contains(range.commonAncestorContainer)) {
+        setPdfHighlightMenu(null);
+        return;
+      }
+      const rect = range.getBoundingClientRect();
+      const containerRect = el.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) {
+        setPdfHighlightMenu(null);
+        return;
+      }
+      setPdfHighlightMenu({
+        x: rect.left + rect.width / 2 - containerRect.left + el.scrollLeft,
+        y: rect.top - containerRect.top + el.scrollTop - 8,
+        text,
+        pageNumber,
+      });
     };
 
     const handleSelectionChange = () => {
       if (selectionTimer) clearTimeout(selectionTimer);
-      selectionTimer = setTimeout(checkSelection, 150);
+      selectionTimer = setTimeout(checkSelection, 350);
     };
 
     const handlePointerDown = (e: PointerEvent) => {
       if ((e.target as HTMLElement)?.closest('[data-highlight-menu]')) return;
       if ((e.target as HTMLElement)?.closest('[data-highlight-color]')) return;
       setPdfHighlightMenu(null);
+      lastSelectionText = '';
+      if (selectionTimer) {
+        clearTimeout(selectionTimer);
+        selectionTimer = null;
+      }
     };
 
     document.addEventListener('selectionchange', handleSelectionChange);
@@ -398,21 +418,67 @@ export const PdfReaderModal: React.FC<PdfReaderModalProps> = ({ book, onClose, o
       );
       if (!textLayers) return;
 
-      textLayers.forEach((layer) => {
-        const spans = layer.querySelectorAll('span');
-        spans.forEach((span) => {
-          const spanText = span.textContent || '';
-          pageHighlights.forEach((hl) => {
-            if (spanText.includes(hl.text.substring(0, 20)) || hl.text.includes(spanText)) {
-              span.style.backgroundColor = colorMap[hl.color] || 'rgba(255, 235, 59, 0.4)';
-              span.style.borderRadius = '2px';
+      const strip = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+      pageHighlights.forEach((hl) => {
+        const normalizedHL = strip(hl.text);
+        if (normalizedHL.length < 2) return;
+
+        textLayers.forEach((layer) => {
+          const fullText = strip(layer.textContent || '');
+          const matchIdx = fullText.indexOf(normalizedHL);
+          if (matchIdx === -1) return;
+
+          const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
+          let charCount = 0;
+          let startNode: Text | null = null;
+          let startOffset = 0;
+          let endNode: Text | null = null;
+          let endOffset = 0;
+
+          let node: Text | null;
+          while ((node = walker.nextNode() as Text | null)) {
+            const nodeLen = (node.textContent || '').length;
+            if (!startNode && charCount + nodeLen > matchIdx) {
+              startNode = node;
+              startOffset = matchIdx - charCount;
             }
-          });
+            if (charCount + nodeLen >= matchIdx + normalizedHL.length) {
+              endNode = node;
+              endOffset = matchIdx + normalizedHL.length - charCount;
+              break;
+            }
+            charCount += nodeLen;
+          }
+
+          if (!startNode || !endNode) return;
+
+          try {
+            const range = document.createRange();
+            range.setStart(startNode, startOffset);
+            range.setEnd(endNode, endOffset);
+
+            const span = document.createElement('span');
+            span.style.backgroundColor = colorMap[hl.color] || 'rgba(255, 235, 59, 0.4)';
+            span.style.borderRadius = '2px';
+            span.setAttribute('data-hl-id', hl.id);
+            range.surroundContents(span);
+          } catch {}
         });
       });
     }, 500);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      viewerRef.current?.querySelectorAll('[data-hl-id]').forEach((el) => {
+        const parent = el.parentNode;
+        if (parent) {
+          while (el.firstChild) parent.insertBefore(el.firstChild, el);
+          parent.removeChild(el);
+        }
+        parent?.normalize();
+      });
+    };
   }, [pdfHighlights, pageNumber]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
